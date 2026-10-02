@@ -10,10 +10,32 @@ import {
   BarChart3,
   Package,
   IndianRupee,
+  Eye,
+  ArrowRight,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { downloadExcel, downloadCSV, type ExportRow } from "@/lib/export";
 import { formatINR } from "@/lib/constants";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 
 export default function ExportPage() {
   const [loading, setLoading] = useState(false);
@@ -36,16 +58,13 @@ export default function ExportPage() {
     try {
       const data = await fetchExportData();
       if (data.length === 0) {
-        toast("No data to export", "info");
+        toast("No data available to export", "info");
         return;
       }
       downloadExcel(data);
-      toast(
-        `Excel exported — ${data.length} rows`,
-        "success"
-      );
+      toast(`Excel workbook downloaded (${data.length} rows)`, "success");
     } catch {
-      toast("Export failed. Please try again.", "error");
+      toast("Export failed. Please check connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -56,16 +75,13 @@ export default function ExportPage() {
     try {
       const data = await fetchExportData();
       if (data.length === 0) {
-        toast("No data to export", "info");
+        toast("No data available to export", "info");
         return;
       }
       downloadCSV(data);
-      toast(
-        `CSV exported — ${data.length} rows`,
-        "success"
-      );
+      toast(`CSV spreadsheet downloaded (${data.length} rows)`, "success");
     } catch {
-      toast("Export failed. Please try again.", "error");
+      toast("Export failed. Please check connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -85,229 +101,217 @@ export default function ExportPage() {
       ).size;
       setStats({ totalPcs, uniqueStyles, totalValue, rows: data.length });
     } catch {
-      toast("Failed to load preview", "error");
+      toast("Failed to load audit preview", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
-      {/* Header */}
+    <div className="max-w-lg mx-auto px-4 pt-5 pb-32">
+      {/* ── Header ── */}
       <header className="mb-6">
-        <h1 className="text-xl font-bold text-white mb-1">Export Center</h1>
-        <p className="text-xs text-slate-400">
-          Download your audit data as Excel or CSV
+        <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+          <span>Export Center</span>
+          <Badge variant="subtle" className="text-[10px]">
+            SheetJS & PapaParse
+          </Badge>
+        </h1>
+        <p className="text-xs text-slate-400 mt-0.5">
+          One-click downloads of physical stock audit reports
         </p>
       </header>
 
-      {/* Export Cards */}
+      {/* ── Export Cards ── */}
       <div className="space-y-3 mb-6">
-        <button
-          onClick={handleExcelExport}
-          disabled={loading}
-          className="card w-full p-5 flex items-center gap-4 hover:bg-slate-700/50 active:scale-[0.98] transition-all text-left"
-        >
-          <div className="w-12 h-12 rounded-xl bg-emerald-600/20 flex items-center justify-center shrink-0">
-            <FileSpreadsheet size={24} className="text-emerald-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-white text-sm">
-              Export All to Excel
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Full audit with summary sheet (.xlsx)
-            </p>
-          </div>
-          {loading ? (
-            <Loader2 size={20} className="animate-spin text-slate-400" />
-          ) : (
-            <Download size={20} className="text-slate-500" />
-          )}
-        </button>
+        {/* Excel Card */}
+        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 overflow-hidden hover:border-emerald-500/50 transition-all">
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/20">
+                <FileSpreadsheet size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold text-white">
+                    Export All to Excel
+                  </h3>
+                  <Badge variant="success" className="text-[10px] py-0 px-1.5">
+                    .xlsx
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Full audit sheet + formatted summary sheet
+                </p>
+              </div>
+            </div>
 
-        <button
-          onClick={handleCSVExport}
-          disabled={loading}
-          className="card w-full p-5 flex items-center gap-4 hover:bg-slate-700/50 active:scale-[0.98] transition-all text-left"
-        >
-          <div className="w-12 h-12 rounded-xl bg-blue-600/20 flex items-center justify-center shrink-0">
-            <FileText size={24} className="text-blue-400" />
+            <Button
+              onClick={handleExcelExport}
+              disabled={loading}
+              variant="success"
+              size="sm"
+              className="gap-1.5 shrink-0"
+            >
+              {loading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Download size={15} />
+              )}
+              Download
+            </Button>
           </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-white text-sm">
-              Export to CSV
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Flat data for further processing (.csv)
-            </p>
+        </Card>
+
+        {/* CSV Card */}
+        <Card className="border-blue-500/30 bg-gradient-to-br from-blue-950/30 via-slate-900 to-slate-900 overflow-hidden hover:border-blue-500/50 transition-all">
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 shadow-lg shadow-blue-500/20">
+                <FileText size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold text-white">
+                    Export Filtered to CSV
+                  </h3>
+                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
+                    .csv
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Fast, flat tabular spreadsheet file
+                </p>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleCSVExport}
+              disabled={loading}
+              variant="secondary"
+              size="sm"
+              className="gap-1.5 shrink-0"
+            >
+              {loading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Download size={15} />
+              )}
+              Download
+            </Button>
           </div>
-          {loading ? (
-            <Loader2 size={20} className="animate-spin text-slate-400" />
-          ) : (
-            <Download size={20} className="text-slate-500" />
-          )}
-        </button>
+        </Card>
       </div>
 
-      {/* Preview Button */}
-      <button
-        onClick={handlePreview}
-        disabled={loading}
-        className="w-full py-3 rounded-xl text-sm font-medium text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition-all mb-6"
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <Loader2 size={16} className="animate-spin" />
-            Loading...
-          </span>
-        ) : (
-          <span className="flex items-center justify-center gap-2">
-            <BarChart3 size={16} />
-            Preview Export Data
-          </span>
-        )}
-      </button>
+      {/* ── In-browser Audit Preview ── */}
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Audit Sheet Preview
+        </h2>
+        <Button
+          onClick={handlePreview}
+          disabled={loading}
+          variant="outline"
+          size="sm"
+          className="gap-1 text-xs"
+        >
+          {loading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Eye size={14} />
+          )}
+          Load Preview
+        </Button>
+      </div>
 
-      {/* Stats & Preview */}
+      {/* Stats summary if preview loaded */}
       {stats && (
-        <div className="space-y-4 animate-slide-up">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="kpi-card">
-              <Package size={18} className="mx-auto text-indigo-400 mb-1" />
-              <div className="text-xl font-bold text-white">
-                {stats.totalPcs.toLocaleString("en-IN")}
+        <Card className="mb-4 p-4 border-indigo-500/20 bg-indigo-950/20 animate-fade-in">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <div className="text-base font-black text-white">{stats.rows}</div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                Rows
               </div>
-              <div className="text-[10px] text-slate-400 uppercase">Pieces</div>
             </div>
-            <div className="kpi-card">
-              <BarChart3 size={18} className="mx-auto text-purple-400 mb-1" />
-              <div className="text-xl font-bold text-white">
+            <div>
+              <div className="text-base font-black text-white">
+                {stats.totalPcs}
+              </div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                Pieces
+              </div>
+            </div>
+            <div>
+              <div className="text-base font-black text-white">
                 {stats.uniqueStyles}
               </div>
-              <div className="text-[10px] text-slate-400 uppercase">Styles</div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                Styles
+              </div>
             </div>
-            <div className="kpi-card">
-              <IndianRupee
-                size={18}
-                className="mx-auto text-emerald-400 mb-1"
-              />
-              <div className="text-lg font-bold text-white">
+            <div>
+              <div className="text-xs font-black text-emerald-400 truncate">
                 {formatINR(stats.totalValue)}
               </div>
-              <div className="text-[10px] text-slate-400 uppercase">Value</div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                Valuation
+              </div>
             </div>
           </div>
-
-          {/* Data Preview Table */}
-          {preview && preview.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="p-3 border-b border-slate-700/50">
-                <h3 className="text-sm font-semibold text-slate-300">
-                  Data Preview ({stats.rows} rows)
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-700/50 text-slate-400">
-                      <th className="px-3 py-2 text-left font-medium">
-                        Category
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium">
-                        Brand
-                      </th>
-                      <th className="px-3 py-2 text-center font-medium">
-                        Size
-                      </th>
-                      <th className="px-3 py-2 text-center font-medium">
-                        Qty
-                      </th>
-                      <th className="px-3 py-2 text-right font-medium">
-                        MRP
-                      </th>
-                      <th className="px-3 py-2 text-right font-medium">
-                        Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.slice(0, 20).map((row, i) => (
-                      <tr
-                        key={i}
-                        className="border-t border-slate-700/30 hover:bg-slate-700/20"
-                      >
-                        <td className="px-3 py-2 text-slate-300">
-                          {row.Category}
-                        </td>
-                        <td className="px-3 py-2 text-white font-medium">
-                          {row.Brand}
-                        </td>
-                        <td className="px-3 py-2 text-center text-slate-300">
-                          {row.Size}
-                        </td>
-                        <td className="px-3 py-2 text-center font-semibold text-white">
-                          {row.Quantity}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-300">
-                          {formatINR(row["MRP (₹)"])}
-                        </td>
-                        <td className="px-3 py-2 text-right text-emerald-400 font-medium">
-                          {formatINR(row["Total Value (₹)"])}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {preview.length > 20 && (
-                  <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-700/30">
-                    Showing 20 of {preview.length} rows
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {preview && preview.length === 0 && (
-            <div className="text-center py-8">
-              <Package size={40} className="mx-auto text-slate-600 mb-3" />
-              <p className="text-slate-400 text-sm">
-                No audit data yet. Start recording from the Audit tab.
-              </p>
-            </div>
-          )}
-        </div>
+        </Card>
       )}
 
-      {/* Export Columns Info */}
-      <div className="card p-4 mt-6">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Export Columns
-        </h3>
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            "ID",
-            "Category",
-            "Brand",
-            "Pattern",
-            "Fabric",
-            "Sleeve",
-            "Size",
-            "Quantity",
-            "MRP (₹)",
-            "Total Value (₹)",
-            "Notes",
-            "Last Updated",
-          ].map((col) => (
-            <span
-              key={col}
-              className="text-[10px] px-2 py-1 rounded-md bg-slate-700/50 text-slate-400"
-            >
-              {col}
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Preview Table */}
+      {preview && (
+        <Card className="overflow-hidden border-slate-800 animate-slide-up">
+          <div className="overflow-x-auto max-h-96">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">MRP</TableHead>
+                  <TableHead className="text-right">Valuation</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {preview.slice(0, 15).map((row) => (
+                  <TableRow key={row.ID}>
+                    <TableCell className="font-semibold text-xs">
+                      {row.Category}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-300">
+                      {row.Brand}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="subtle" className="text-[10px]">
+                        {row.Size}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-white text-xs">
+                      {row.Quantity}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-slate-400">
+                      ₹{row["MRP (₹)"]}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-xs text-emerald-400">
+                      ₹{row["Total Value (₹)"]}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {preview.length > 15 && (
+            <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-800">
+              Showing 15 of {preview.length} rows. Full export includes all items.
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
