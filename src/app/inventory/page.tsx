@@ -16,25 +16,25 @@ import {
   RefreshCw,
   Plus,
   Minus,
-  Sparkles,
-  ArrowRight,
-  Filter,
+  Trash2,
+  Edit,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
-import { formatINR } from "@/lib/constants";
+import { formatINR, PATTERNS, FABRICS, SLEEVES } from "@/lib/constants";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface Category {
   id: string;
@@ -68,9 +68,27 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // In-line variant quantity editing
   const [editingVariant, setEditingVariant] = useState<string | null>(null);
   const [editValue, setEditValue] = useState(0);
   const [updatingVariant, setUpdatingVariant] = useState(false);
+
+  // Edit Product Modal State
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editFormBrand, setEditFormBrand] = useState("");
+  const [editFormMrp, setEditFormMrp] = useState(0);
+  const [editFormCategoryId, setEditFormCategoryId] = useState("");
+  const [editFormPattern, setEditFormPattern] = useState<string | null>(null);
+  const [editFormFabric, setEditFormFabric] = useState<string | null>(null);
+  const [editFormSleeve, setEditFormSleeve] = useState<string | null>(null);
+  const [editFormNotes, setEditFormNotes] = useState("");
+  const [savingProductEdit, setSavingProductEdit] = useState(false);
+
+  // Delete Product Confirmation State
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProducts = useCallback(
@@ -121,12 +139,13 @@ export default function InventoryPage() {
     });
   };
 
-  const startEdit = (variant: Variant) => {
+  // Inline Variant edit
+  const startEditVariant = (variant: Variant) => {
     setEditingVariant(variant.id);
     setEditValue(variant.quantity);
   };
 
-  const saveEdit = async (variantId: string) => {
+  const saveEditVariant = async (variantId: string) => {
     setUpdatingVariant(true);
     try {
       const res = await fetch("/api/variants", {
@@ -139,7 +158,6 @@ export default function InventoryPage() {
       });
       if (!res.ok) throw new Error();
 
-      // Optimistic update
       setProducts((prev) =>
         prev.map((p) => ({
           ...p,
@@ -156,6 +174,99 @@ export default function InventoryPage() {
     } finally {
       setEditingVariant(null);
       setUpdatingVariant(false);
+    }
+  };
+
+  // Delete individual variant size
+  const handleDeleteVariant = async (productId: string, variantId: string, sizeName: string) => {
+    if (!confirm(`Remove size ${sizeName} from this garment style?`)) return;
+
+    try {
+      const res = await fetch(`/api/variants?id=${variantId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? { ...p, variants: p.variants.filter((v) => v.id !== variantId) }
+            : p
+        )
+      );
+      toast(`Size ${sizeName} removed`, "success");
+    } catch {
+      toast("Failed to delete size variant", "error");
+    }
+  };
+
+  // Open Edit Product Dialog
+  const openEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setEditFormBrand(product.brand);
+    setEditFormMrp(product.mrp);
+    setEditFormCategoryId(product.category.id);
+    setEditFormPattern(product.pattern);
+    setEditFormFabric(product.fabric);
+    setEditFormSleeve(product.sleeve);
+    setEditFormNotes(product.notes || "");
+  };
+
+  // Submit Product Edit
+  const handleSaveProductEdit = async () => {
+    if (!editingProduct) return;
+    setSavingProductEdit(true);
+
+    try {
+      const res = await fetch("/api/products", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingProduct.id,
+          brand: editFormBrand.trim() || "Unbranded",
+          mrp: editFormMrp,
+          categoryId: editFormCategoryId,
+          pattern: editFormPattern,
+          fabric: editFormFabric,
+          sleeve: editFormSleeve,
+          notes: editFormNotes.trim() || null,
+        }),
+      });
+
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editingProduct.id ? updated : p))
+      );
+      toast("Garment details updated successfully", "success");
+      setEditingProduct(null);
+    } catch {
+      toast("Failed to update garment details", "error");
+    } finally {
+      setSavingProductEdit(false);
+    }
+  };
+
+  // Delete entire Product
+  const handleDeleteProduct = async () => {
+    if (!deletingProduct) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/products?id=${deletingProduct.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error();
+
+      setProducts((prev) => prev.filter((p) => p.id !== deletingProduct.id));
+      toast(`Deleted ${deletingProduct.brand} (${deletingProduct.category.name}) from inventory`, "success");
+      setDeletingProduct(null);
+    } catch {
+      toast("Failed to delete item from inventory", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -183,7 +294,7 @@ export default function InventoryPage() {
             </Badge>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Storewide physical counts & valuations
+            Storewide physical counts, edits & valuations
           </p>
         </div>
 
@@ -203,7 +314,6 @@ export default function InventoryPage() {
 
       {/* ── KPI Metric Cards ── */}
       <div className="grid grid-cols-3 gap-2.5 mb-5">
-        {/* Total Pieces */}
         <Card className="p-3.5 bg-indigo-50/70 border-indigo-100 text-center shadow-xs">
           <div className="w-8 h-8 mx-auto rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 mb-2">
             <Package size={16} />
@@ -216,7 +326,6 @@ export default function InventoryPage() {
           </div>
         </Card>
 
-        {/* Garment Styles */}
         <Card className="p-3.5 bg-purple-50/70 border-purple-100 text-center shadow-xs">
           <div className="w-8 h-8 mx-auto rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 mb-2">
             <Layers size={16} />
@@ -229,7 +338,6 @@ export default function InventoryPage() {
           </div>
         </Card>
 
-        {/* Inventory Value */}
         <Card className="p-3.5 bg-emerald-50/70 border-emerald-100 text-center shadow-xs">
           <div className="w-8 h-8 mx-auto rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 mb-2">
             <IndianRupee size={16} />
@@ -323,12 +431,12 @@ export default function InventoryPage() {
                 className="overflow-hidden border-slate-200/90 bg-white shadow-xs transition-all hover:border-slate-300 hover:shadow-sm"
               >
                 {/* Header card banner */}
-                <button
-                  type="button"
-                  onClick={() => toggleExpand(product.id)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/80 transition-colors"
-                >
-                  <div className="flex-1 min-w-0 pr-3">
+                <div className="p-4 flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(product.id)}
+                    className="flex-1 text-left min-w-0"
+                  >
                     <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                       <Badge variant="default" className="text-[10px] py-0 font-medium">
                         {product.category.name}
@@ -355,10 +463,11 @@ export default function InventoryPage() {
                         ₹{product.mrp}
                       </span>
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
+                  {/* Action buttons & quantity count */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right mr-1">
                       <div className="text-lg font-black text-slate-900">
                         {totalQty}
                       </div>
@@ -366,22 +475,48 @@ export default function InventoryPage() {
                         Pcs
                       </div>
                     </div>
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+
+                    {/* Edit Garment Style Button */}
+                    <button
+                      type="button"
+                      onClick={() => openEditProduct(product)}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 flex items-center justify-center transition-colors"
+                      title="Edit style details"
+                    >
+                      <Edit size={14} />
+                    </button>
+
+                    {/* Delete Garment Style Button */}
+                    <button
+                      type="button"
+                      onClick={() => setDeletingProduct(product)}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 flex items-center justify-center transition-colors"
+                      title="Delete from inventory"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+
+                    {/* Expand/Collapse Chevron */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(product.id)}
+                      className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+                    >
                       {isExpanded ? (
                         <ChevronUp size={16} />
                       ) : (
                         <ChevronDown size={16} />
                       )}
-                    </div>
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {/* Expanded variant breakdown */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 bg-slate-50/70 p-3.5 space-y-2 animate-slide-up">
                     <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 px-1 mb-2">
                       <span>Size Breakdown</span>
-                      <span>Tap count to recount</span>
+                      <span>Tap quantity to edit</span>
                     </div>
 
                     <div className="space-y-1.5">
@@ -436,7 +571,7 @@ export default function InventoryPage() {
                                   type="button"
                                   size="icon-sm"
                                   variant="success"
-                                  onClick={() => saveEdit(v.id)}
+                                  onClick={() => saveEditVariant(v.id)}
                                   disabled={updatingVariant}
                                 >
                                   {updatingVariant ? (
@@ -458,22 +593,33 @@ export default function InventoryPage() {
                                 </Button>
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => startEdit(v)}
-                                className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:border-indigo-200 border border-slate-200/70 transition-all group"
-                              >
-                                <span className="text-sm font-extrabold text-slate-900">
-                                  {v.quantity}
-                                </span>
-                                <span className="text-[10px] text-slate-500">
-                                  pcs
-                                </span>
-                                <Edit3
-                                  size={12}
-                                  className="text-slate-400 group-hover:text-indigo-600 transition-colors"
-                                />
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditVariant(v)}
+                                  className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:border-indigo-200 border border-slate-200/70 transition-all group"
+                                >
+                                  <span className="text-sm font-extrabold text-slate-900">
+                                    {v.quantity}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500">
+                                    pcs
+                                  </span>
+                                  <Edit3
+                                    size={12}
+                                    className="text-slate-400 group-hover:text-indigo-600 transition-colors"
+                                  />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteVariant(product.id, v.id, v.size)}
+                                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                                  title={`Remove ${v.size}`}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -492,6 +638,196 @@ export default function InventoryPage() {
           })}
         </div>
       )}
+
+      {/* ── Edit Product Dialog ── */}
+      <Dialog
+        open={Boolean(editingProduct)}
+        onOpenChange={(open) => !open && setEditingProduct(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Garment Style</DialogTitle>
+            <DialogDescription>
+              Update product details, brand, or retail pricing
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            <div>
+              <label className="text-xs font-bold text-slate-600 uppercase mb-1 block">
+                Brand / Company
+              </label>
+              <Input
+                value={editFormBrand}
+                onChange={(e) => setEditFormBrand(e.target.value)}
+                placeholder="Brand name"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase mb-1 block">
+                  Retail MRP (₹)
+                </label>
+                <Input
+                  type="number"
+                  value={editFormMrp}
+                  onChange={(e) => setEditFormMrp(Math.max(1, parseInt(e.target.value) || 0))}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase mb-1 block">
+                  Category
+                </label>
+                <select
+                  value={editFormCategoryId}
+                  onChange={(e) => setEditFormCategoryId(e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Pattern
+                </label>
+                <select
+                  value={editFormPattern || ""}
+                  onChange={(e) => setEditFormPattern(e.target.value || null)}
+                  className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 outline-none"
+                >
+                  <option value="">None</option>
+                  {PATTERNS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Fabric
+                </label>
+                <select
+                  value={editFormFabric || ""}
+                  onChange={(e) => setEditFormFabric(e.target.value || null)}
+                  className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 outline-none"
+                >
+                  <option value="">None</option>
+                  {FABRICS.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Sleeve
+                </label>
+                <select
+                  value={editFormSleeve || ""}
+                  onChange={(e) => setEditFormSleeve(e.target.value || null)}
+                  className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 outline-none"
+                >
+                  <option value="">None</option>
+                  {SLEEVES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-600 uppercase mb-1 block">
+                Notes / Rack Description
+              </label>
+              <Input
+                value={editFormNotes}
+                onChange={(e) => setEditFormNotes(e.target.value)}
+                placeholder="Rack notes..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEditingProduct(null)}
+              disabled={savingProductEdit}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveProductEdit}
+              disabled={savingProductEdit}
+              className="gap-2"
+            >
+              {savingProductEdit && <Loader2 size={15} className="animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog
+        open={Boolean(deletingProduct)}
+        onOpenChange={(open) => !open && setDeletingProduct(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-2 border border-rose-200">
+              <AlertTriangle size={24} />
+            </div>
+            <DialogTitle className="text-center">
+              Delete Garment Style?
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Are you sure you want to delete{" "}
+              <strong className="text-slate-900 font-bold">
+                {deletingProduct?.brand} ({deletingProduct?.category.name})
+              </strong>{" "}
+              and all its counted sizes from inventory? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeletingProduct(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteProduct}
+              disabled={isDeleting}
+              className="gap-2"
+            >
+              {isDeleting && <Loader2 size={15} className="animate-spin" />}
+              Yes, Delete Style
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

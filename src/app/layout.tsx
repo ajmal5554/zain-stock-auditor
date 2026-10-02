@@ -4,6 +4,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/bottom-nav";
 import { Toaster } from "@/components/toaster";
 import { OfflineBanner } from "@/components/offline-banner";
+import { PwaInstaller } from "@/components/pwa-installer";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,6 +16,15 @@ export const metadata: Metadata = {
   description:
     "Fast, mobile-first physical stock audit tool for Zain Gents Palace",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Zain Stock",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +45,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans antialiased bg-slate-50 text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
       >
+        <PwaInstaller />
         <OfflineBanner />
         <main className="pb-24">{children}</main>
         <BottomNav />

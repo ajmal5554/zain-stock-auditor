@@ -151,3 +151,66 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, brand, mrp, categoryId, pattern, fabric, sleeve, notes } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
+    }
+
+    const data: Record<string, unknown> = {};
+    if (brand !== undefined) data.brand = brand.trim() || "Unbranded";
+    if (mrp !== undefined) data.mrp = Math.max(1, Math.floor(Number(mrp)));
+    if (categoryId !== undefined) data.categoryId = categoryId;
+    if (pattern !== undefined) data.pattern = pattern;
+    if (fabric !== undefined) data.fabric = fabric;
+    if (sleeve !== undefined) data.sleeve = sleeve;
+    if (notes !== undefined) data.notes = notes;
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data,
+      include: {
+        category: true,
+        variants: {
+          orderBy: { size: "asc" },
+        },
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("Failed to update product:", error);
+    return NextResponse.json(
+      { error: "Failed to update product details" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
+    }
+
+    await prisma.$transaction([
+      prisma.productVariant.deleteMany({ where: { productId: id } }),
+      prisma.product.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete product:", error);
+    return NextResponse.json(
+      { error: "Failed to delete product from inventory" },
+      { status: 500 }
+    );
+  }
+}

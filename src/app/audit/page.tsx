@@ -130,11 +130,44 @@ export default function AuditPage() {
 
     fetch("/api/brands")
       .then((r) => r.json())
-      .then(setBrands)
+      .then((data: string[]) => {
+        let custom: string[] = [];
+        try {
+          custom = JSON.parse(localStorage.getItem("zain_custom_brands") || "[]");
+        } catch {}
+        const merged = Array.from(new Set([...data, ...custom])).sort((a, b) =>
+          a.localeCompare(b)
+        );
+        setBrands(merged);
+        setFilteredBrands(merged);
+      })
       .catch(() => {});
 
     const cleanup = setupOfflineSync();
     return cleanup;
+  }, []);
+
+  // Save new brand into persistent suggestions
+  const rememberBrand = useCallback((brandName: string) => {
+    const trimmed = brandName.trim();
+    if (
+      !trimmed ||
+      trimmed.toLowerCase() === "unbranded" ||
+      trimmed.toLowerCase() === "local"
+    )
+      return;
+    try {
+      const custom: string[] = JSON.parse(
+        localStorage.getItem("zain_custom_brands") || "[]"
+      );
+      if (!custom.includes(trimmed)) {
+        custom.push(trimmed);
+        localStorage.setItem("zain_custom_brands", JSON.stringify(custom));
+      }
+      setBrands((prev) =>
+        Array.from(new Set([...prev, trimmed])).sort((a, b) => a.localeCompare(b))
+      );
+    } catch {}
   }, []);
 
   // Set sizes based on category and innerwear scale
@@ -171,16 +204,14 @@ export default function AuditPage() {
     }
   }, [watchedCategoryId, categories, setValue, applyCategorySizes, innerwearScale]);
 
-  // Brand autocomplete
+  // Brand autocomplete & suggestions
   useEffect(() => {
-    if (watchedBrand && watchedBrand.length > 0) {
-      const filtered = brands.filter((b) =>
-        b.toLowerCase().includes(watchedBrand.toLowerCase())
-      );
-      setFilteredBrands(filtered);
-      setShowBrandDropdown(filtered.length > 0);
+    if (!watchedBrand || watchedBrand.trim() === "") {
+      setFilteredBrands(brands);
     } else {
-      setShowBrandDropdown(false);
+      const q = watchedBrand.toLowerCase().trim();
+      const filtered = brands.filter((b) => b.toLowerCase().includes(q));
+      setFilteredBrands(filtered);
     }
   }, [watchedBrand, brands]);
 
@@ -198,7 +229,6 @@ export default function AuditPage() {
         const found = existingWithCount.find((e) => e.size === s);
         return found || { size: s, quantity: 0 };
       });
-      // Preserve any custom or non-standard sizes that already had counts
       for (const e of existingWithCount) {
         if (!newSizes.find((ns) => ns.size === e.size)) {
           newSizes.push(e);
@@ -291,11 +321,10 @@ export default function AuditPage() {
         "success"
       );
 
-      // Refresh brands list
-      fetch("/api/brands")
-        .then((r) => r.json())
-        .then(setBrands)
-        .catch(() => {});
+      // Remember brand for instant suggestion
+      if (data.brand) {
+        rememberBrand(data.brand);
+      }
 
       // Clear quantities & sizes, preserve Category and Brand for rapid batch entry
       const currentCategoryId = data.categoryId;
@@ -325,6 +354,10 @@ export default function AuditPage() {
       enqueueOffline("/api/products", "POST", data);
       toast("Saved offline — will sync once reconnected", "info");
 
+      if (data.brand) {
+        rememberBrand(data.brand);
+      }
+
       const currentCategoryId = data.categoryId;
       const currentBrand = data.brand;
       reset({
@@ -350,7 +383,7 @@ export default function AuditPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-5 pb-44">
+    <div className="max-w-lg mx-auto px-4 pt-5 pb-28">
       {/* ── Header ── */}
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -372,11 +405,31 @@ export default function AuditPage() {
           </div>
         </div>
 
-        {saveCount > 0 && (
-          <Badge variant="subtle" className="text-xs font-semibold px-2.5 py-1">
-            {saveCount} Saved
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {totalItemPieces > 0 && (
+            <Button
+              type="button"
+              onClick={handleSubmit(onSubmit)}
+              disabled={submitting}
+              variant="success"
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-bold shadow-xs animate-fade-in"
+            >
+              {submitting ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={14} />
+              )}
+              <span>Save ({totalItemPieces})</span>
+            </Button>
+          )}
+
+          {saveCount > 0 && (
+            <Badge variant="subtle" className="text-xs font-semibold px-2.5 py-1">
+              {saveCount} Saved
+            </Badge>
+          )}
+        </div>
       </header>
 
       {/* ── Audit Entry Form ── */}
@@ -480,14 +533,14 @@ export default function AuditPage() {
           </CardContent>
         </Card>
 
-        {/* ── Brand / Company Section ── */}
+        {/* ── Brand / Company Section with Instant Suggestions ── */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-              2. Brand / Company
+              2. Brand / Company Name
             </CardTitle>
             <CardDescription>
-              Select brand or tap Unbranded for local / generic stock
+              Smart suggestions, custom brand memory & 1-tap unbranded chips
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -504,17 +557,15 @@ export default function AuditPage() {
                     <Input
                       {...field}
                       ref={brandInputRef}
-                      placeholder="e.g. Raymond, Otto, VIP (or leave blank for Unbranded)"
+                      placeholder="Type brand or select from suggestions below..."
                       className="pl-10 text-sm"
                       autoComplete="off"
                       onFocus={() => {
-                        if (field.value && filteredBrands.length > 0) {
-                          setShowBrandDropdown(true);
-                        }
+                        setShowBrandDropdown(true);
                       }}
-                      onBlur={() =>
-                        setTimeout(() => setShowBrandDropdown(false), 200)
-                      }
+                      onBlur={() => {
+                        setTimeout(() => setShowBrandDropdown(false), 250);
+                      }}
                     />
                     {field.value && (
                       <button
@@ -529,9 +580,28 @@ export default function AuditPage() {
                 )}
               />
 
+              {/* Suggestions Dropdown (Opens on focus & updates dynamically) */}
               {showBrandDropdown && (
-                <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto animate-slide-up divide-y divide-slate-100">
-                  {filteredBrands.map((b) => (
+                <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto animate-slide-up divide-y divide-slate-100">
+                  {watchedBrand &&
+                    !brands.some(
+                      (b) => b.toLowerCase() === watchedBrand.toLowerCase().trim()
+                    ) && (
+                      <button
+                        type="button"
+                        className="w-full px-4 py-2.5 text-left text-xs font-bold text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-colors flex items-center justify-between"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          rememberBrand(watchedBrand);
+                          setShowBrandDropdown(false);
+                        }}
+                      >
+                        <span>+ Use &quot;{watchedBrand}&quot; as brand</span>
+                        <Plus size={14} />
+                      </button>
+                    )}
+
+                  {filteredBrands.slice(0, 15).map((b) => (
                     <button
                       key={b}
                       type="button"
@@ -550,22 +620,22 @@ export default function AuditPage() {
               )}
             </div>
 
-            {/* Quick 1-tap buttons for items without a company/brand */}
-            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+            {/* Quick 1-tap brand chips (Horizontal Scrollable) */}
+            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto pb-1">
               <button
                 type="button"
                 onClick={() => {
                   setValue("brand", "Unbranded");
                   setShowBrandDropdown(false);
                 }}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all border ${
+                className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
                   watchedBrand === "Unbranded"
-                    ? "bg-amber-100 text-amber-900 border-amber-300"
+                    ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
                 }`}
               >
-                <Zap size={12} className="text-amber-500 fill-amber-500" />
-                <span>No Brand / Unbranded</span>
+                <Zap size={11} className="text-amber-500 fill-amber-500" />
+                Unbranded / No Brand
               </button>
 
               <button
@@ -574,14 +644,35 @@ export default function AuditPage() {
                   setValue("brand", "Local");
                   setShowBrandDropdown(false);
                 }}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all border ${
+                className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
                   watchedBrand === "Local"
-                    ? "bg-indigo-100 text-indigo-900 border-indigo-300"
+                    ? "bg-indigo-100 text-indigo-900 border-indigo-300 shadow-2xs"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
                 }`}
               >
-                <span>Local Store Make</span>
+                Local Store Make
               </button>
+
+              {brands
+                .filter((b) => b !== "Unbranded" && b !== "Local")
+                .slice(0, 8)
+                .map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => {
+                      setValue("brand", b);
+                      setShowBrandDropdown(false);
+                    }}
+                    className={`shrink-0 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border transition-all ${
+                      watchedBrand === b
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                    }`}
+                  >
+                    {b}
+                  </button>
+                ))}
             </div>
 
             {errors.brand && (
@@ -768,7 +859,7 @@ export default function AuditPage() {
           </CardContent>
         </Card>
 
-        {/* ── MRP Price Card ── */}
+        {/* ── MRP Price Card (Cursor & Scroll Safe) ── */}
         <Card className="border-indigo-200 bg-gradient-to-b from-indigo-50/60 via-white to-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -811,7 +902,6 @@ export default function AuditPage() {
                         }
                       }}
                       onChange={(e) => {
-                        // Strip any non-digits so mouse wheel/cursor movement can NEVER alter value
                         const clean = e.target.value.replace(/[^0-9]/g, "");
                         field.onChange(clean ? parseInt(clean, 10) : 0);
                       }}
@@ -854,7 +944,7 @@ export default function AuditPage() {
           </CardContent>
         </Card>
 
-        {/* ── Size & Quantity Matrix ── */}
+        {/* ── Size & Physical Count Matrix + Integrated Save Action ── */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <div>
@@ -974,7 +1064,7 @@ export default function AuditPage() {
                       )}
                     </div>
 
-                    {/* High-throughput mobile stepper */}
+                    {/* Stepper buttons */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -1020,6 +1110,34 @@ export default function AuditPage() {
               })}
             </div>
 
+            {/* Direct In-Matrix Save Summary & Action (Thumb-friendly, No overlapping floating bar) */}
+            <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${totalItemPieces > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-300"}`} />
+                  <span>{totalItemPieces} Pcs Counted</span>
+                </div>
+                <div className="text-[11px] text-emerald-700 font-bold">
+                  ₹{((watchedMrp || 0) * totalItemPieces).toLocaleString("en-IN")} total value
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={submitting || totalItemPieces === 0}
+                variant="success"
+                size="default"
+                className="h-11 px-5 rounded-xl font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2"
+              >
+                {submitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={17} />
+                )}
+                <span>Save Rack</span>
+              </Button>
+            </div>
+
             {errors.variants && (
               <p className="text-rose-600 text-xs mt-2 font-medium">
                 {errors.variants.message}
@@ -1044,7 +1162,7 @@ export default function AuditPage() {
           </CardContent>
         </Card>
 
-        {/* ── Primary In-Flow Action Button (Always at end of form) ── */}
+        {/* ── Full-Width Primary Form Submission Action ── */}
         <div className="pt-2">
           <Button
             type="submit"
@@ -1079,38 +1197,6 @@ export default function AuditPage() {
             </p>
           )}
         </div>
-
-        {/* ── Sticky Mobile Action Bar (ONLY shown when pieces > 0) ── */}
-        {totalItemPieces > 0 && (
-          <div className="fixed bottom-[64px] left-0 right-0 z-30 bg-white/98 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] py-2.5 px-4 animate-slide-up">
-            <div className="max-w-md mx-auto flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{totalItemPieces} Pcs Counted</span>
-                </div>
-                <div className="text-[11px] text-emerald-700 font-bold">
-                  ₹{((watchedMrp || 0) * totalItemPieces).toLocaleString("en-IN")} total value
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={submitting}
-                variant="success"
-                size="default"
-                className="h-11 px-5 rounded-xl font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2 shrink-0"
-              >
-                {submitting ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={17} />
-                )}
-                <span>Save Rack</span>
-              </Button>
-            </div>
-          </div>
-        )}
       </form>
     </div>
   );
