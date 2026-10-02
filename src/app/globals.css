@@ -1,26 +1,143 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-primary: #6366f1;
+    --color-primary-hover: #818cf8;
+    --color-success: #22c55e;
+    --color-success-hover: #16a34a;
+    --color-danger: #ef4444;
+    --color-surface: #1e293b;
+    --color-surface-elevated: #334155;
+    --color-border: #475569;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: #475569 transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .pill-btn {
+    @apply px-4 py-2.5 rounded-full text-sm font-medium
+           transition-all duration-200 ease-out
+           border border-slate-600 text-slate-300
+           active:scale-95 select-none cursor-pointer
+           hover:border-indigo-400 hover:text-white;
+  }
+
+  .pill-btn-active {
+    @apply bg-indigo-600 border-indigo-500 text-white
+           shadow-lg shadow-indigo-500/25;
+  }
+
+  .card {
+    @apply bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-slate-700/50
+           shadow-xl shadow-black/20;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl bg-slate-800 border border-slate-600
+           px-4 py-3 text-slate-100 placeholder-slate-400
+           focus:outline-none focus:ring-2 focus:ring-indigo-500
+           focus:border-transparent transition-all duration-200;
+  }
+
+  .kpi-card {
+    @apply bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-xl shadow-black/20 p-4 text-center;
+  }
+
+  .sticky-action-bar {
+    @apply fixed bottom-16 left-0 right-0 p-4 z-40
+           bg-slate-950/95 backdrop-blur-md border-t border-slate-800;
+  }
+
+  .success-btn {
+    @apply w-full py-4 rounded-2xl font-bold text-lg
+           bg-emerald-600 text-white
+           hover:bg-emerald-500 active:bg-emerald-700 active:scale-[0.98]
+           transition-all duration-200 ease-out
+           disabled:opacity-50 disabled:cursor-not-allowed
+           shadow-lg shadow-emerald-500/25;
+  }
+
+  .danger-btn {
+    @apply px-4 py-2 rounded-xl font-medium
+           bg-red-600/20 text-red-400 border border-red-500/30
+           hover:bg-red-600/30 active:scale-95
+           transition-all duration-200;
+  }
+}
+
+@layer utilities {
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  .animate-pulse-success {
+    animation: pulseSuccess 0.6s ease-out;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseSuccess {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
 }

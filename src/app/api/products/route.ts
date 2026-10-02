@@ -54,22 +54,35 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validated = auditEntrySchema.parse(body);
 
-    // Create the product and upsert each variant atomically
+    // Find existing product style or create new, then upsert each variant atomically
     const product = await prisma.$transaction(async (tx) => {
-      const created = await tx.product.create({
-        data: {
+      let productRecord = await tx.product.findFirst({
+        where: {
           categoryId: validated.categoryId,
-          brand: validated.brand,
+          brand: { equals: validated.brand, mode: "insensitive" },
           pattern: validated.pattern ?? null,
           fabric: validated.fabric ?? null,
           sleeve: validated.sleeve ?? null,
           mrp: Math.floor(validated.mrp),
-          costPrice: validated.costPrice
-            ? Math.floor(validated.costPrice)
-            : null,
-          notes: validated.notes ?? null,
         },
       });
+
+      if (!productRecord) {
+        productRecord = await tx.product.create({
+          data: {
+            categoryId: validated.categoryId,
+            brand: validated.brand,
+            pattern: validated.pattern ?? null,
+            fabric: validated.fabric ?? null,
+            sleeve: validated.sleeve ?? null,
+            mrp: Math.floor(validated.mrp),
+            costPrice: validated.costPrice
+              ? Math.floor(validated.costPrice)
+              : null,
+            notes: validated.notes ?? null,
+          },
+        });
+      }
 
       // Upsert variants - if a duplicate productId+size exists,
       // increment existing quantity (handles re-counting from different racks)
@@ -78,12 +91,12 @@ export async function POST(request: Request) {
           await tx.productVariant.upsert({
             where: {
               productId_size: {
-                productId: created.id,
+                productId: productRecord.id,
                 size: variant.size,
               },
             },
             create: {
-              productId: created.id,
+              productId: productRecord.id,
               size: variant.size,
               quantity: Math.max(0, Math.floor(variant.quantity)),
             },
@@ -97,7 +110,7 @@ export async function POST(request: Request) {
       }
 
       return tx.product.findUnique({
-        where: { id: created.id },
+        where: { id: productRecord.id },
         include: {
           category: true,
           variants: true,
