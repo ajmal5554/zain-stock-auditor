@@ -1,0 +1,48 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id         String           @id @default(cuid())
+  categoryId String
+  category   Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brand      String
+  pattern    String?
+  fabric     String?
+  sleeve     String?
+  mrp        Float
+  costPrice  Float?
+  notes      String?
+  customMeta Json?
+  variants   ProductVariant[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([brand])
+  @@index([categoryId])
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size      String
+  quantity  Int      @default(0)
+  barcode   String?  @unique
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, size])
+}
