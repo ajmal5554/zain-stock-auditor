@@ -67,6 +67,23 @@ export async function POST(request: Request) {
         },
       });
 
+      // Prepare customMeta and enriched notes
+      const customMetaObj = {
+        ...(validated.customMeta || {}),
+        ...(validated.fit ? { fit: validated.fit } : {}),
+        ...(validated.color ? { color: validated.color } : {}),
+      };
+
+      const extraTags: string[] = [];
+      if (validated.fit) extraTags.push(validated.fit);
+      if (validated.color) extraTags.push(validated.color);
+
+      let enrichedNotes = validated.notes?.trim() || null;
+      if (extraTags.length > 0) {
+        const prefix = extraTags.join(" • ");
+        enrichedNotes = enrichedNotes ? `${prefix} | ${enrichedNotes}` : prefix;
+      }
+
       if (!productRecord) {
         productRecord = await tx.product.create({
           data: {
@@ -79,7 +96,8 @@ export async function POST(request: Request) {
             costPrice: validated.costPrice
               ? Math.floor(validated.costPrice)
               : null,
-            notes: validated.notes ?? null,
+            notes: enrichedNotes,
+            customMeta: Object.keys(customMetaObj).length > 0 ? customMetaObj : undefined,
           },
         });
       }

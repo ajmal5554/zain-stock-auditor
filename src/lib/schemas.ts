@@ -28,12 +28,16 @@ export const auditEntrySchema = z.object({
   categoryId: z.string().cuid("Invalid category"),
   brand: z
     .string()
-    .min(1, "Brand is required")
     .max(100, "Brand name too long")
-    .trim(),
+    .optional()
+    .default("Unbranded")
+    .transform((val) => (val && val.trim() ? val.trim() : "Unbranded")),
   pattern: z.string().nullable().optional(),
   fabric: z.string().nullable().optional(),
   sleeve: z.string().nullable().optional(),
+  fit: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  customMeta: z.record(z.any()).nullable().optional(),
   mrp: z
     .number()
     .int("MRP must be a whole rupee amount")
