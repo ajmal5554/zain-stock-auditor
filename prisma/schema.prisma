@@ -46,3 +46,18 @@ model ProductVariant {
 
   @@unique([productId, size])
 }
+
+model Brand {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  categories  String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}

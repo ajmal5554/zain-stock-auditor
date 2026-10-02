@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, Package2, ArrowDownToLine } from "lucide-react";
+import { ClipboardList, Package2, ArrowDownToLine, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/audit", label: "Aisle Audit", icon: ClipboardList },
   { href: "/inventory", label: "Live Stock", icon: Package2 },
   { href: "/export", label: "Export Data", icon: ArrowDownToLine },
+  { href: "/settings", label: "Settings", icon: SlidersHorizontal },
 ] as const;
 
 export function BottomNav() {

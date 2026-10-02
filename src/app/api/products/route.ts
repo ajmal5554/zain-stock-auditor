@@ -102,6 +102,42 @@ export async function POST(request: Request) {
         });
       }
 
+      // Auto-link brand to this category so it appears under suggestions for this category
+      if (
+        validated.brand &&
+        validated.brand !== "Unbranded" &&
+        validated.brand !== "Local"
+      ) {
+        try {
+          const cat = await tx.category.findUnique({
+            where: { id: validated.categoryId },
+            select: { name: true },
+          });
+          if (cat) {
+            const existingBrand = await tx.brand.findUnique({
+              where: { name: validated.brand },
+            });
+            if (existingBrand) {
+              if (!existingBrand.categories.includes(cat.name) && !existingBrand.categories.includes("*")) {
+                await tx.brand.update({
+                  where: { id: existingBrand.id },
+                  data: { categories: { push: cat.name } },
+                });
+              }
+            } else {
+              await tx.brand.create({
+                data: {
+                  name: validated.brand,
+                  categories: [cat.name],
+                },
+              });
+            }
+          }
+        } catch (brandErr) {
+          console.warn("Brand auto-link warning:", brandErr);
+        }
+      }
+
       // Upsert variants - if a duplicate productId+size exists,
       // increment existing quantity (handles re-counting from different racks)
       for (const variant of validated.variants) {

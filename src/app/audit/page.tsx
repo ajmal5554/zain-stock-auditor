@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -53,6 +53,11 @@ import {
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
+import {
+  DEFAULT_CATEGORY_SIZE_SCALES,
+  DEFAULT_CATEGORY_ATTRIBUTES,
+} from "../../../scripts/seed-store-data";
+
 interface Category {
   id: string;
   name: string;
@@ -80,8 +85,30 @@ export default function AuditPage() {
   const [showSleeve, setShowSleeve] = useState(true);
   const [saveCount, setSaveCount] = useState(0);
 
-  // Innerwear size scale state: numeric (75-105 cm), waist (30-42 in), alpha (S-3XL)
-  const [innerwearScale, setInnerwearScale] = useState<"numeric" | "waist" | "alpha">("numeric");
+  // Dynamic store settings from database / settings page
+  const [storeSizeScales, setStoreSizeScales] = useState<
+    Record<string, { id: string; name: string; sizes: string[]; default?: boolean }[]>
+  >(DEFAULT_CATEGORY_SIZE_SCALES);
+  const [storeAttributes, setStoreAttributes] = useState<
+    Record<
+      string,
+      {
+        subtypes?: string[];
+        collars?: string[];
+        sleeves?: string[];
+        fits?: string[];
+        fabrics?: string[];
+        patterns?: string[];
+        borders?: string[];
+      }
+    >
+  >(DEFAULT_CATEGORY_ATTRIBUTES);
+  const [activeScaleId, setActiveScaleId] = useState<string>("");
+
+  // Dynamic garment attribute selections
+  const [selectedSubtype, setSelectedSubtype] = useState<string | null>(null);
+  const [selectedCollar, setSelectedCollar] = useState<string | null>(null);
+  const [selectedBorder, setSelectedBorder] = useState<string | null>(null);
 
   const brandInputRef = useRef<HTMLInputElement>(null);
   const mrpInputRef = useRef<HTMLInputElement>(null);
@@ -121,25 +148,34 @@ export default function AuditPage() {
   // Calculate current item pieces
   const totalItemPieces = sizes.reduce((sum, s) => sum + s.quantity, 0);
 
-  // Load categories and brands
+  // Load categories and store settings on mount
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
-      .then(setCategories)
+      .then((data) => {
+        if (Array.isArray(data)) setCategories(data);
+      })
       .catch(() => toast("Failed to load categories", "error"));
 
-    fetch("/api/brands")
+    // Load cached settings
+    try {
+      const cachedScales = localStorage.getItem("zain_category_size_scales");
+      if (cachedScales) setStoreSizeScales(JSON.parse(cachedScales));
+      const cachedAttrs = localStorage.getItem("zain_category_attributes");
+      if (cachedAttrs) setStoreAttributes(JSON.parse(cachedAttrs));
+    } catch {}
+
+    fetch("/api/settings")
       .then((r) => r.json())
-      .then((data: string[]) => {
-        let custom: string[] = [];
-        try {
-          custom = JSON.parse(localStorage.getItem("zain_custom_brands") || "[]");
-        } catch {}
-        const merged = Array.from(new Set([...data, ...custom])).sort((a, b) =>
-          a.localeCompare(b)
-        );
-        setBrands(merged);
-        setFilteredBrands(merged);
+      .then((data) => {
+        if (data.sizeScales && Object.keys(data.sizeScales).length > 0) {
+          setStoreSizeScales(data.sizeScales);
+          localStorage.setItem("zain_category_size_scales", JSON.stringify(data.sizeScales));
+        }
+        if (data.attributes && Object.keys(data.attributes).length > 0) {
+          setStoreAttributes(data.attributes);
+          localStorage.setItem("zain_category_attributes", JSON.stringify(data.attributes));
+        }
       })
       .catch(() => {});
 
@@ -147,62 +183,154 @@ export default function AuditPage() {
     return cleanup;
   }, []);
 
-  // Save new brand into persistent suggestions
-  const rememberBrand = useCallback((brandName: string) => {
-    const trimmed = brandName.trim();
-    if (
-      !trimmed ||
-      trimmed.toLowerCase() === "unbranded" ||
-      trimmed.toLowerCase() === "local"
-    )
-      return;
-    try {
-      const custom: string[] = JSON.parse(
-        localStorage.getItem("zain_custom_brands") || "[]"
-      );
-      if (!custom.includes(trimmed)) {
-        custom.push(trimmed);
-        localStorage.setItem("zain_custom_brands", JSON.stringify(custom));
-      }
-      setBrands((prev) =>
-        Array.from(new Set([...prev, trimmed])).sort((a, b) => a.localeCompare(b))
-      );
-    } catch {}
-  }, []);
+  // Fetch category-specific brands when category changes
+  useEffect(() => {
+    if (!selectedCategoryName) return;
 
-  // Set sizes based on category and innerwear scale
-  const applyCategorySizes = useCallback(
-    (catName: string, scale: "numeric" | "waist" | "alpha" = innerwearScale) => {
-      if (isMunduCategory(catName)) {
-        setSizes([
-          { size: "Single", quantity: 0 },
-          { size: "Double", quantity: 0 },
-        ]);
-      } else if (isInnerwearCategory(catName)) {
-        const scaleSizes = INNERWEAR_SIZE_SCALES[scale].sizes;
-        setSizes(scaleSizes.map((s) => ({ size: s, quantity: 0 })));
-      } else {
-        const presets = getSizePresets(catName);
-        setSizes(presets.map((s) => ({ size: s, quantity: 0 })));
-      }
+    const catParam = encodeURIComponent(selectedCategoryName);
+    fetch(`/api/brands?category=${catParam}`)
+      .then((r) => r.json())
+      .then((data: ({ name: string } | string)[]) => {
+        const brandNames = data.map((b) => (typeof b === "string" ? b : b.name));
+
+        let custom: string[] = [];
+        try {
+          custom = JSON.parse(
+            localStorage.getItem(`zain_cat_brands_${selectedCategoryName}`) || "[]"
+          );
+        } catch {}
+
+        const merged = Array.from(new Set([...brandNames, ...custom])).sort((a, b) =>
+          a.localeCompare(b)
+        );
+        setBrands(merged);
+        setFilteredBrands(merged);
+      })
+      .catch(() => {});
+  }, [selectedCategoryName]);
+
+  // Save new brand into persistent suggestions and link to category
+  const rememberBrand = useCallback(
+    (brandName: string) => {
+      const trimmed = brandName.trim();
+      if (
+        !trimmed ||
+        trimmed.toLowerCase() === "unbranded" ||
+        trimmed.toLowerCase() === "local"
+      )
+        return;
+
+      // 1. Post to API to persist in database
+      fetch("/api/brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          categories: selectedCategoryName ? [selectedCategoryName] : ["*"],
+        }),
+      }).catch(() => {});
+
+      // 2. Cache locally
+      try {
+        const key = selectedCategoryName
+          ? `zain_cat_brands_${selectedCategoryName}`
+          : "zain_custom_brands";
+        const custom: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+        if (!custom.includes(trimmed)) {
+          custom.push(trimmed);
+          localStorage.setItem(key, JSON.stringify(custom));
+        }
+        setBrands((prev) =>
+          Array.from(new Set([...prev, trimmed])).sort((a, b) => a.localeCompare(b))
+        );
+      } catch {}
     },
-    [innerwearScale]
+    [selectedCategoryName]
   );
 
-  // Update sizes when category changes
+type CategoryScale = { id: string; name: string; sizes: string[]; default?: boolean };
+
+  // Available size scales for currently selected category
+  const currentCategoryScales: CategoryScale[] = useMemo(() => {
+    if (!selectedCategoryName) return [];
+    if (storeSizeScales[selectedCategoryName] && storeSizeScales[selectedCategoryName].length > 0) {
+      return storeSizeScales[selectedCategoryName];
+    }
+    if (isMunduCategory(selectedCategoryName)) {
+      return DEFAULT_CATEGORY_SIZE_SCALES["Mundus & Dhotis"] || [];
+    }
+    if (isInnerwearCategory(selectedCategoryName)) {
+      return DEFAULT_CATEGORY_SIZE_SCALES["Innerwears & Undergarments"] || [];
+    }
+    return [
+      {
+        id: "default_alpha",
+        name: "Standard (S - 3XL)",
+        sizes: ["S", "M", "L", "XL", "XXL", "3XL"],
+        default: true,
+      },
+    ];
+  }, [storeSizeScales, selectedCategoryName]);
+
+  // Apply default size scale when category changes
+  useEffect(() => {
+    if (currentCategoryScales.length > 0) {
+      const defaultScale =
+        currentCategoryScales.find((s: CategoryScale) => s.default) || currentCategoryScales[0];
+      setActiveScaleId(defaultScale.id);
+      setSizes(defaultScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+    }
+  }, [selectedCategoryName, currentCategoryScales]);
+
+  // Handle switching size scale (e.g. Adults 75-105 vs Kids 50-75)
+  const handleScaleChange = (scale: CategoryScale) => {
+    setActiveScaleId(scale.id);
+    setSizes((prev) => {
+      const existingWithCount = prev.filter((p) => p.quantity > 0);
+      const newSizes = scale.sizes.map((s) => {
+        const found = existingWithCount.find((e) => e.size === s);
+        return found || { size: s, quantity: 0 };
+      });
+      for (const e of existingWithCount) {
+        if (!newSizes.find((ns) => ns.size === e.size)) {
+          newSizes.push(e);
+        }
+      }
+      return newSizes;
+    });
+  };
+
+  // Attributes for currently selected category
+  const currentCategoryAttrs = useMemo(() => {
+    if (!selectedCategoryName) return {};
+    if (storeAttributes[selectedCategoryName]) {
+      return storeAttributes[selectedCategoryName];
+    }
+    if (isMunduCategory(selectedCategoryName)) {
+      return DEFAULT_CATEGORY_ATTRIBUTES["Mundus & Dhotis"] || {};
+    }
+    if (isInnerwearCategory(selectedCategoryName)) {
+      return DEFAULT_CATEGORY_ATTRIBUTES["Innerwears & Undergarments"] || {};
+    }
+    return {};
+  }, [storeAttributes, selectedCategoryName]);
+
+  // Update category and sleeve visibility
   useEffect(() => {
     if (watchedCategoryId) {
       const cat = categories.find((c) => c.id === watchedCategoryId);
       if (cat) {
         setSelectedCategoryName(cat.name);
         setShowSleeve(shouldShowSleeve(cat.name));
-        applyCategorySizes(cat.name, innerwearScale);
+        setSelectedSubtype(null);
+        setSelectedCollar(null);
+        setSelectedBorder(null);
         if (!shouldShowSleeve(cat.name)) {
           setValue("sleeve", null);
         }
       }
     }
-  }, [watchedCategoryId, categories, setValue, applyCategorySizes, innerwearScale]);
+  }, [watchedCategoryId, categories, setValue]);
 
   // Brand autocomplete & suggestions
   useEffect(() => {
@@ -219,24 +347,6 @@ export default function AuditPage() {
   useEffect(() => {
     setValue("variants", sizes);
   }, [sizes, setValue]);
-
-  const handleInnerwearScaleChange = (scale: "numeric" | "waist" | "alpha") => {
-    setInnerwearScale(scale);
-    const scaleSizes = INNERWEAR_SIZE_SCALES[scale].sizes;
-    setSizes((prev) => {
-      const existingWithCount = prev.filter((p) => p.quantity > 0);
-      const newSizes = scaleSizes.map((s) => {
-        const found = existingWithCount.find((e) => e.size === s);
-        return found || { size: s, quantity: 0 };
-      });
-      for (const e of existingWithCount) {
-        if (!newSizes.find((ns) => ns.size === e.size)) {
-          newSizes.push(e);
-        }
-      }
-      return newSizes;
-    });
-  };
 
   const updateQuantity = useCallback((index: number, delta: number) => {
     setSizes((prev) => {
@@ -305,10 +415,20 @@ export default function AuditPage() {
   const onSubmit = async (data: AuditEntryInput) => {
     setSubmitting(true);
     try {
+      const customMeta: Record<string, string> = {};
+      if (selectedSubtype) customMeta.subtype = selectedSubtype;
+      if (selectedCollar) customMeta.collar = selectedCollar;
+      if (selectedBorder) customMeta.border = selectedBorder;
+
+      const payload = {
+        ...data,
+        customMeta: Object.keys(customMeta).length > 0 ? customMeta : undefined,
+      };
+
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -321,7 +441,7 @@ export default function AuditPage() {
         "success"
       );
 
-      // Remember brand for instant suggestion
+      // Remember brand for instant suggestion under this category
       if (data.brand) {
         rememberBrand(data.brand);
       }
@@ -343,15 +463,27 @@ export default function AuditPage() {
         variants: [],
       });
 
-      const cat = categories.find((c) => c.id === currentCategoryId);
-      if (cat) {
-        applyCategorySizes(cat.name, innerwearScale);
+      if (currentCategoryScales.length > 0) {
+        const activeScale =
+          currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+          currentCategoryScales[0];
+        setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
       }
 
       setTimeout(() => mrpInputRef.current?.focus(), 150);
     } catch {
       // Offline fallback: queue to localStorage
-      enqueueOffline("/api/products", "POST", data);
+      const customMeta: Record<string, string> = {};
+      if (selectedSubtype) customMeta.subtype = selectedSubtype;
+      if (selectedCollar) customMeta.collar = selectedCollar;
+      if (selectedBorder) customMeta.border = selectedBorder;
+
+      const payload = {
+        ...data,
+        customMeta: Object.keys(customMeta).length > 0 ? customMeta : undefined,
+      };
+
+      enqueueOffline("/api/products", "POST", payload);
       toast("Saved offline — will sync once reconnected", "info");
 
       if (data.brand) {
@@ -373,9 +505,12 @@ export default function AuditPage() {
         notes: null,
         variants: [],
       });
-      const cat = categories.find((c) => c.id === currentCategoryId);
-      if (cat) {
-        applyCategorySizes(cat.name, innerwearScale);
+
+      if (currentCategoryScales.length > 0) {
+        const activeScale =
+          currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+          currentCategoryScales[0];
+        setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
       }
     } finally {
       setSubmitting(false);
@@ -694,8 +829,64 @@ export default function AuditPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Subtypes / Garment Cut (e.g. Briefs, Trunks, Vests, Drawers) */}
+            {currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0 && (
+              <div className="animate-fade-in pt-1">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
+                  Subtype / Garment Cut
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentCategoryAttrs.subtypes.map((st: string) => {
+                    const isSelected = selectedSubtype === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setSelectedSubtype(isSelected ? null : st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Collar / Neck Style (e.g. Polo / Collar, Round Neck, Hooded / Hoodie, V-Neck, Henley) */}
+            {currentCategoryAttrs.collars && currentCategoryAttrs.collars.length > 0 && (
+              <div className="animate-fade-in pt-2 border-t border-slate-100">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
+                  Collar / Neck Style
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentCategoryAttrs.collars.map((col: string) => {
+                    const isSelected = selectedCollar === col;
+                    return (
+                      <button
+                        key={col}
+                        type="button"
+                        onClick={() => setSelectedCollar(isSelected ? null : col)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {col}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Pattern */}
-            <div>
+            <div className="pt-2 border-t border-slate-100">
               <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
                 Pattern
               </span>
@@ -709,7 +900,7 @@ export default function AuditPage() {
                     onValueChange={(val) => field.onChange(val || null)}
                     variant="outline"
                   >
-                    {PATTERNS.map((p) => (
+                    {(currentCategoryAttrs.patterns || PATTERNS).map((p: string) => (
                       <ToggleGroupItem key={p} value={p}>
                         {p}
                       </ToggleGroupItem>
@@ -735,7 +926,7 @@ export default function AuditPage() {
                       onValueChange={(val) => field.onChange(val || null)}
                       variant="outline"
                     >
-                      {SLEEVES.map((s) => (
+                      {(currentCategoryAttrs.sleeves || SLEEVES).map((s: string) => (
                         <ToggleGroupItem key={s} value={s}>
                           {s}
                         </ToggleGroupItem>
@@ -761,7 +952,7 @@ export default function AuditPage() {
                     onValueChange={(val) => field.onChange(val || null)}
                     variant="outline"
                   >
-                    {FABRICS.map((f) => (
+                    {(currentCategoryAttrs.fabrics || FABRICS).map((f: string) => (
                       <ToggleGroupItem key={f} value={f}>
                         {f}
                       </ToggleGroupItem>
@@ -787,7 +978,7 @@ export default function AuditPage() {
                       onValueChange={(val) => field.onChange(val || null)}
                       variant="outline"
                     >
-                      {FITS.map((fit) => (
+                      {(currentCategoryAttrs.fits || FITS).map((fit: string) => (
                         <ToggleGroupItem key={fit} value={fit}>
                           {fit}
                         </ToggleGroupItem>
@@ -804,24 +995,25 @@ export default function AuditPage() {
                 <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
                   Mundu Border / Kasavu
                 </span>
-                <Controller
-                  name="fit"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleGroup
-                      type="single"
-                      value={field.value || ""}
-                      onValueChange={(val) => field.onChange(val || null)}
-                      variant="outline"
-                    >
-                      {MUNDU_BORDERS.map((border) => (
-                        <ToggleGroupItem key={border} value={border}>
-                          {border}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  )}
-                />
+                <div className="flex flex-wrap gap-1.5">
+                  {(currentCategoryAttrs.borders || MUNDU_BORDERS).map((border: string) => {
+                    const isSelected = selectedBorder === border;
+                    return (
+                      <button
+                        key={border}
+                        type="button"
+                        onClick={() => setSelectedBorder(isSelected ? null : border)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? "bg-amber-600 text-white border-amber-600 shadow-xs font-bold"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {border}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -979,27 +1171,27 @@ export default function AuditPage() {
           </CardHeader>
 
           <CardContent className="space-y-3">
-            {/* Innerwear brand size system scale tabs */}
-            {isInnerwear && (
-              <div className="p-1 rounded-xl bg-slate-100 border border-slate-200 space-y-1 mb-2">
-                <div className="flex items-center gap-1">
-                  {(["numeric", "waist", "alpha"] as const).map((sc) => (
-                    <button
-                      key={sc}
-                      type="button"
-                      onClick={() => handleInnerwearScaleChange(sc)}
-                      className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all text-center ${
-                        innerwearScale === sc
-                          ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      {INNERWEAR_SIZE_SCALES[sc].label}
-                    </button>
-                  ))}
-                </div>
-                <div className="text-[10px] text-slate-500 text-center px-2">
-                  {INNERWEAR_SIZE_SCALES[innerwearScale].description}
+            {/* Dynamic category size scale tabs */}
+            {currentCategoryScales.length > 1 && (
+              <div className="p-1 rounded-xl bg-slate-100 border border-slate-200 mb-2">
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
+                  {currentCategoryScales.map((sc: CategoryScale) => {
+                    const isSelected = activeScaleId === sc.id;
+                    return (
+                      <button
+                        key={sc.id}
+                        type="button"
+                        onClick={() => handleScaleChange(sc)}
+                        className={`flex-1 min-w-[95px] py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all text-center ${
+                          isSelected
+                            ? "bg-white text-indigo-700 shadow-2xs font-extrabold border border-indigo-200"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {sc.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1034,11 +1226,10 @@ export default function AuditPage() {
             {/* Size Steppers Matrix */}
             <div className="space-y-2">
               {sizes.map((entry, index) => {
-                const isPreset =
-                  isMundu ||
-                  (isInnerwear
-                    ? INNERWEAR_SIZE_SCALES[innerwearScale].sizes.includes(entry.size)
-                    : getSizePresets(selectedCategoryName).includes(entry.size));
+                const activeScale = currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId);
+                const isPreset = activeScale
+                  ? activeScale.sizes.includes(entry.size)
+                  : true;
 
                 return (
                   <div

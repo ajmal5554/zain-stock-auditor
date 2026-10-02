@@ -154,3 +154,33 @@ export function getTimestampedFilename(
   const min = String(now.getMinutes()).padStart(2, "0");
   return `${prefix}_${y}-${m}-${d}_${h}${min}.${extension}`;
 }
+
+export const POPULAR_RETAIL_BRANDS = [
+  "Raymond",
+  "Otto",
+  "Allen Solly",
+  "Ramraj",
+  "Jockey",
+  "VIP",
+  "Dixcy Scott",
+  "Rupa",
+  "Lux Cozi",
+  "Amul Macho",
+  "Peter England",
+  "ColorPlus",
+  "Louis Philippe",
+  "Van Heusen",
+  "Arrow",
+  "Oxemberg",
+  "Siyaram's",
+  "Zodiac",
+  "Turtle",
+  "Blackberrys",
+  "U.S. Polo",
+  "Mufti",
+  "Levis",
+  "Killer",
+  "MCR",
+  "Unbranded",
+  "Local",
+];
