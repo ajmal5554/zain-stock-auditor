@@ -9,14 +9,10 @@ import {
   Loader2,
   CheckCircle2,
   X,
-  Sparkles,
   ShoppingBag,
   IndianRupee,
-  Layers,
   Search,
-  Check,
   Tag,
-  ArrowRight,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { auditEntrySchema, type AuditEntryInput } from "@/lib/schemas";
@@ -304,26 +300,26 @@ export default function AuditPage() {
       {/* ── Header ── */}
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-600/30 border border-indigo-400/20">
-            <ShoppingBag size={22} className="text-white" />
+          <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20 text-white">
+            <ShoppingBag size={22} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-lg font-bold text-white tracking-tight">
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
                 Zain Gents Palace
               </h1>
               <Badge variant="success" className="text-[10px] py-0 px-2">
                 Live
               </Badge>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Aisle Physical Audit Terminal
             </p>
           </div>
         </div>
 
         {saveCount > 0 && (
-          <Badge variant="default" className="gap-1 px-3 py-1">
+          <Badge variant="default" className="gap-1 px-3 py-1 font-bold">
             <CheckCircle2 size={13} />
             <span>{saveCount} Saved</span>
           </Badge>
@@ -333,9 +329,9 @@ export default function AuditPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* ── Category Section ── */}
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle className="text-xs uppercase tracking-wider text-slate-400">
+              <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
                 1. Garment Category
               </CardTitle>
               <CardDescription>
@@ -354,7 +350,7 @@ export default function AuditPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1 text-xs border-dashed text-indigo-400 border-indigo-500/40 hover:bg-indigo-950/40"
+                  className="gap-1 text-xs border-dashed text-indigo-600 border-indigo-300 hover:bg-indigo-50"
                 >
                   <Plus size={14} />
                   New
@@ -414,10 +410,10 @@ export default function AuditPage() {
                     key={cat.id}
                     type="button"
                     onClick={() => setValue("categoryId", cat.id)}
-                    className={`relative px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 select-none cursor-pointer border ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 select-none cursor-pointer border ${
                       isSelected
-                        ? "bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/35 scale-[1.02]"
-                        : "bg-slate-900/80 text-slate-300 border-slate-700/80 hover:border-slate-500 hover:text-white"
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-600/30 font-bold"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
                     {cat.name}
@@ -426,7 +422,7 @@ export default function AuditPage() {
               })}
             </div>
             {errors.categoryId && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">
+              <p className="text-rose-600 text-xs mt-2 font-medium">
                 {errors.categoryId.message}
               </p>
             )}
@@ -435,8 +431,8 @@ export default function AuditPage() {
 
         {/* ── Brand Section ── */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-slate-400">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
               2. Brand Name
             </CardTitle>
             <CardDescription>
@@ -474,12 +470,12 @@ export default function AuditPage() {
               />
 
               {showBrandDropdown && (
-                <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-xl max-h-48 overflow-y-auto animate-slide-up divide-y divide-slate-800">
+                <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto animate-slide-up divide-y divide-slate-100">
                   {filteredBrands.map((b) => (
                     <button
                       key={b}
                       type="button"
-                      className="w-full px-4 py-2.5 text-left text-xs font-medium text-slate-200 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors flex items-center justify-between"
+                      className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-800 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center justify-between"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setValue("brand", b);
@@ -487,14 +483,14 @@ export default function AuditPage() {
                       }}
                     >
                       <span>{b}</span>
-                      <Tag size={12} className="text-slate-500" />
+                      <Tag size={12} className="text-slate-400" />
                     </button>
                   ))}
                 </div>
               )}
             </div>
             {errors.brand && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">
+              <p className="text-rose-600 text-xs mt-2 font-medium">
                 {errors.brand.message}
               </p>
             )}
@@ -503,8 +499,8 @@ export default function AuditPage() {
 
         {/* ── Garment Attributes ── */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-slate-400">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
               3. Garment Attributes
             </CardTitle>
             <CardDescription>
@@ -514,7 +510,7 @@ export default function AuditPage() {
           <CardContent className="space-y-4">
             {/* Pattern */}
             <div>
-              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2 block">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
                 Pattern
               </span>
               <Controller
@@ -539,8 +535,8 @@ export default function AuditPage() {
 
             {/* Sleeve — auto-hidden for pants, mundus, etc. */}
             {showSleeve && (
-              <div className="animate-fade-in pt-1 border-t border-slate-800/80">
-                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2 block">
+              <div className="animate-fade-in pt-2 border-t border-slate-100">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
                   Sleeve Type
                 </span>
                 <Controller
@@ -565,8 +561,8 @@ export default function AuditPage() {
             )}
 
             {/* Fabric */}
-            <div className="pt-1 border-t border-slate-800/80">
-              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2 block">
+            <div className="pt-2 border-t border-slate-100">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 block">
                 Fabric Material
               </span>
               <Controller
@@ -592,13 +588,13 @@ export default function AuditPage() {
         </Card>
 
         {/* ── MRP Price Card ── */}
-        <Card className="border-indigo-500/30 bg-gradient-to-b from-indigo-950/20 via-slate-900 to-slate-900">
+        <Card className="border-indigo-200 bg-gradient-to-b from-indigo-50/60 via-white to-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs uppercase tracking-wider text-indigo-300">
+              <CardTitle className="text-xs uppercase tracking-wider text-indigo-900 font-bold">
                 4. Retail MRP Price (₹)
               </CardTitle>
-              <Badge variant="subtle" className="text-[10px]">
+              <Badge variant="secondary" className="text-[10px]">
                 Whole Rupee
               </Badge>
             </div>
@@ -606,7 +602,7 @@ export default function AuditPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-indigo-400 pointer-events-none">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-indigo-600 pointer-events-none">
                   ₹
                 </div>
                 <Controller
@@ -618,7 +614,7 @@ export default function AuditPage() {
                       type="number"
                       inputMode="numeric"
                       placeholder="0"
-                      className="pl-10 text-center text-3xl font-extrabold h-16 tracking-tight bg-slate-950/80 border-indigo-500/40 text-white"
+                      className="pl-10 text-center text-3xl font-extrabold h-16 tracking-tight bg-white border-indigo-200 text-slate-900 shadow-xs focus-visible:ring-indigo-500/20"
                       value={field.value || ""}
                       onFocus={(e) => {
                         if (e.target.value === "0") e.target.value = "";
@@ -633,12 +629,12 @@ export default function AuditPage() {
               </div>
 
               {/* Quick price increment buttons */}
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[11px] px-2"
+                  className="h-7 text-[11px] px-2.5 font-bold"
                   onClick={() =>
                     setValue("mrp", Math.max(0, (watchedMrp || 0) + 100))
                   }
@@ -649,7 +645,7 @@ export default function AuditPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[11px] px-2"
+                  className="h-7 text-[11px] px-2.5 font-bold"
                   onClick={() =>
                     setValue("mrp", Math.max(0, (watchedMrp || 0) + 500))
                   }
@@ -659,7 +655,7 @@ export default function AuditPage() {
               </div>
             </div>
             {errors.mrp && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">
+              <p className="text-rose-600 text-xs mt-2 font-medium">
                 {errors.mrp.message}
               </p>
             )}
@@ -667,15 +663,15 @@ export default function AuditPage() {
         </Card>
 
         {/* ── Size & Quantity Matrix ── */}
-        <Card className="border-slate-800">
+        <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <div>
-              <CardTitle className="text-xs uppercase tracking-wider text-slate-400">
+              <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
                 5. Size & Physical Count Matrix
               </CardTitle>
               <CardDescription>
                 {totalItemPieces > 0 ? (
-                  <span className="text-emerald-400 font-semibold">
+                  <span className="text-emerald-600 font-bold">
                     {totalItemPieces} pieces ready to save
                   </span>
                 ) : (
@@ -689,7 +685,7 @@ export default function AuditPage() {
               variant="outline"
               size="sm"
               onClick={() => setShowCustomSize(!showCustomSize)}
-              className="gap-1 text-xs border-dashed text-indigo-400 border-indigo-500/40"
+              className="gap-1 text-xs border-dashed text-indigo-600 border-indigo-300"
             >
               <Plus size={14} />
               Custom
@@ -698,7 +694,7 @@ export default function AuditPage() {
 
           <CardContent className="space-y-3">
             {showCustomSize && (
-              <div className="flex gap-2 p-3 rounded-xl bg-slate-950/70 border border-indigo-500/30 animate-slide-up">
+              <div className="flex gap-2 p-3 rounded-xl bg-slate-50 border border-indigo-200 animate-slide-up">
                 <Input
                   placeholder="e.g. 36, 46, Free Size..."
                   value={customSizeInput}
@@ -730,18 +726,18 @@ export default function AuditPage() {
                 return (
                   <div
                     key={`${entry.size}-${idx}`}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-200 ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-150 ${
                       hasCount
-                        ? "bg-indigo-950/30 border-indigo-500/50 shadow-sm shadow-indigo-600/10"
-                        : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                        ? "bg-indigo-50/60 border-indigo-200 shadow-2xs"
+                        : "bg-slate-50/50 border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs ${
                           hasCount
                             ? "bg-indigo-600 text-white"
-                            : "bg-slate-800 text-slate-300"
+                            : "bg-white text-slate-700 border border-slate-200"
                         }`}
                       >
                         {entry.size}
@@ -753,7 +749,7 @@ export default function AuditPage() {
                         type="button"
                         onClick={() => updateQuantity(idx, -1)}
                         disabled={entry.quantity <= 0}
-                        className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+                        className="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 disabled:pointer-events-none shadow-2xs"
                       >
                         <Minus size={15} />
                       </button>
@@ -766,13 +762,13 @@ export default function AuditPage() {
                           setQuantity(idx, parseInt(e.target.value) || 0)
                         }
                         onFocus={(e) => e.target.select()}
-                        className="w-12 text-center text-base font-extrabold bg-transparent text-white outline-none"
+                        className="w-12 text-center text-base font-extrabold bg-transparent text-slate-900 outline-none"
                       />
 
                       <button
                         type="button"
                         onClick={() => updateQuantity(idx, 1)}
-                        className="w-9 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all active:scale-90 shadow-sm shadow-indigo-600/30"
+                        className="w-9 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all active:scale-90 shadow-2xs"
                       >
                         <Plus size={15} />
                       </button>
@@ -780,7 +776,7 @@ export default function AuditPage() {
                       <button
                         type="button"
                         onClick={() => removeSize(idx)}
-                        className="text-slate-600 hover:text-rose-400 p-1 transition-colors"
+                        className="text-slate-400 hover:text-rose-500 p-1 transition-colors"
                         title="Remove size"
                       >
                         <X size={14} />
@@ -792,13 +788,13 @@ export default function AuditPage() {
             </div>
 
             {sizes.length === 0 && (
-              <p className="text-center text-slate-500 text-xs py-6">
+              <p className="text-center text-slate-400 text-xs py-6">
                 Please select a category above to load size presets.
               </p>
             )}
 
             {errors.variants && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">
+              <p className="text-rose-600 text-xs mt-2 font-medium">
                 {typeof errors.variants === "object" &&
                 "message" in errors.variants
                   ? (errors.variants as { message?: string }).message
@@ -811,7 +807,7 @@ export default function AuditPage() {
         {/* ── Notes ── */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs uppercase tracking-wider text-slate-400">
+            <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
               6. Garment Notes (Optional)
             </CardTitle>
           </CardHeader>
@@ -832,7 +828,7 @@ export default function AuditPage() {
               disabled={submitting || totalItemPieces === 0}
               variant="success"
               size="lg"
-              className="w-full h-14 rounded-2xl text-base font-bold shadow-xl shadow-emerald-600/30 flex items-center justify-between px-6"
+              className="w-full h-14 rounded-2xl text-base font-bold shadow-xl shadow-emerald-600/25 flex items-center justify-between px-6"
             >
               {submitting ? (
                 <span className="flex items-center gap-2 mx-auto">
@@ -845,7 +841,7 @@ export default function AuditPage() {
                     <CheckCircle2 size={20} />
                     <span>Save & Scan Next Rack</span>
                   </div>
-                  <Badge variant="subtle" className="bg-black/30 text-white font-bold text-xs px-2.5">
+                  <Badge variant="subtle" className="bg-black/20 text-white font-bold text-xs px-2.5">
                     {totalItemPieces} Pcs
                   </Badge>
                 </>

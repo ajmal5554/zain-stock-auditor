@@ -111,13 +111,13 @@ export default function ExportPage() {
     <div className="max-w-lg mx-auto px-4 pt-5 pb-32">
       {/* ── Header ── */}
       <header className="mb-6">
-        <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <span>Export Center</span>
           <Badge variant="subtle" className="text-[10px]">
             SheetJS & PapaParse
           </Badge>
         </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-500 mt-0.5">
           One-click downloads of physical stock audit reports
         </p>
       </header>
@@ -125,22 +125,22 @@ export default function ExportPage() {
       {/* ── Export Cards ── */}
       <div className="space-y-3 mb-6">
         {/* Excel Card */}
-        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 overflow-hidden hover:border-emerald-500/50 transition-all">
+        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/60 via-white to-white overflow-hidden hover:border-emerald-300 shadow-xs transition-all">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/20">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
                 <FileSpreadsheet size={24} />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-bold text-slate-900">
                     Export All to Excel
                   </h3>
                   <Badge variant="success" className="text-[10px] py-0 px-1.5">
                     .xlsx
                   </Badge>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Full audit sheet + formatted summary sheet
                 </p>
               </div>
@@ -164,22 +164,22 @@ export default function ExportPage() {
         </Card>
 
         {/* CSV Card */}
-        <Card className="border-blue-500/30 bg-gradient-to-br from-blue-950/30 via-slate-900 to-slate-900 overflow-hidden hover:border-blue-500/50 transition-all">
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50/60 via-white to-white overflow-hidden hover:border-blue-300 shadow-xs transition-all">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 shadow-lg shadow-blue-500/20">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
                 <FileText size={24} />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-bold text-slate-900">
                     Export Filtered to CSV
                   </h3>
                   <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
                     .csv
                   </Badge>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Fast, flat tabular spreadsheet file
                 </p>
               </div>
@@ -205,7 +205,7 @@ export default function ExportPage() {
 
       {/* ── In-browser Audit Preview ── */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Audit Sheet Preview
         </h2>
         <Button
@@ -226,35 +226,35 @@ export default function ExportPage() {
 
       {/* Stats summary if preview loaded */}
       {stats && (
-        <Card className="mb-4 p-4 border-indigo-500/20 bg-indigo-950/20 animate-fade-in">
+        <Card className="mb-4 p-4 border-indigo-100 bg-indigo-50/70 shadow-xs animate-fade-in">
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
-              <div className="text-base font-black text-white">{stats.rows}</div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+              <div className="text-base font-black text-slate-900">{stats.rows}</div>
+              <div className="text-[10px] text-slate-500 font-semibold uppercase">
                 Rows
               </div>
             </div>
             <div>
-              <div className="text-base font-black text-white">
+              <div className="text-base font-black text-slate-900">
                 {stats.totalPcs}
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+              <div className="text-[10px] text-slate-500 font-semibold uppercase">
                 Pieces
               </div>
             </div>
             <div>
-              <div className="text-base font-black text-white">
+              <div className="text-base font-black text-slate-900">
                 {stats.uniqueStyles}
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+              <div className="text-[10px] text-slate-500 font-semibold uppercase">
                 Styles
               </div>
             </div>
             <div>
-              <div className="text-xs font-black text-emerald-400 truncate">
+              <div className="text-xs font-black text-emerald-700 truncate">
                 {formatINR(stats.totalValue)}
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">
+              <div className="text-[10px] text-slate-500 font-semibold uppercase">
                 Valuation
               </div>
             </div>
@@ -264,7 +264,7 @@ export default function ExportPage() {
 
       {/* Preview Table */}
       {preview && (
-        <Card className="overflow-hidden border-slate-800 animate-slide-up">
+        <Card className="overflow-hidden border-slate-200 bg-white shadow-xs animate-slide-up">
           <div className="overflow-x-auto max-h-96">
             <Table>
               <TableHeader>
@@ -280,10 +280,10 @@ export default function ExportPage() {
               <TableBody>
                 {preview.slice(0, 15).map((row) => (
                   <TableRow key={row.ID}>
-                    <TableCell className="font-semibold text-xs">
+                    <TableCell className="font-semibold text-xs text-slate-900">
                       {row.Category}
                     </TableCell>
-                    <TableCell className="text-xs text-slate-300">
+                    <TableCell className="text-xs text-slate-700 font-medium">
                       {row.Brand}
                     </TableCell>
                     <TableCell>
@@ -291,13 +291,13 @@ export default function ExportPage() {
                         {row.Size}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-white text-xs">
+                    <TableCell className="text-right font-bold text-slate-900 text-xs">
                       {row.Quantity}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-slate-400">
+                    <TableCell className="text-right text-xs text-slate-500">
                       ₹{row["MRP (₹)"]}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-xs text-emerald-400">
+                    <TableCell className="text-right font-semibold text-xs text-emerald-700">
                       ₹{row["Total Value (₹)"]}
                     </TableCell>
                   </TableRow>
@@ -306,7 +306,7 @@ export default function ExportPage() {
             </Table>
           </div>
           {preview.length > 15 && (
-            <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-800">
+            <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-100 bg-slate-50/50">
               Showing 15 of {preview.length} rows. Full export includes all items.
             </div>
           )}

@@ -39,15 +39,15 @@ export function Toaster() {
   }, [removeToast]);
 
   const icons = {
-    success: <CheckCircle size={20} className="text-emerald-400 shrink-0" />,
-    error: <AlertTriangle size={20} className="text-red-400 shrink-0" />,
-    info: <Info size={20} className="text-blue-400 shrink-0" />,
+    success: <CheckCircle size={20} className="text-emerald-600 shrink-0" />,
+    error: <AlertTriangle size={20} className="text-rose-600 shrink-0" />,
+    info: <Info size={20} className="text-blue-600 shrink-0" />,
   };
 
   const borders = {
-    success: "border-emerald-500/30",
-    error: "border-red-500/30",
-    info: "border-blue-500/30",
+    success: "border-emerald-200 bg-emerald-50/90 text-emerald-950",
+    error: "border-rose-200 bg-rose-50/90 text-rose-950",
+    info: "border-blue-200 bg-blue-50/90 text-blue-950",
   };
 
   return (
@@ -56,14 +56,14 @@ export function Toaster() {
         <div
           key={t.id}
           className={`pointer-events-auto animate-slide-up flex items-center gap-3
-            bg-slate-800/95 backdrop-blur-md rounded-xl px-4 py-3 shadow-2xl shadow-black/30
+            backdrop-blur-md rounded-xl px-4 py-3 shadow-lg shadow-slate-200/80
             border ${borders[t.type]}`}
         >
           {icons[t.type]}
-          <p className="text-sm text-slate-100 flex-1">{t.message}</p>
+          <p className="text-sm font-medium flex-1">{t.message}</p>
           <button
             onClick={() => removeToast(t.id)}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-slate-400 hover:text-slate-700 transition-colors"
           >
             <X size={16} />
           </button>

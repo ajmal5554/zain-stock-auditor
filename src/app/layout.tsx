@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0f172a",
+  themeColor: "#4f46e5",
 };
 
 export default function RootLayout({
@@ -31,12 +31,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${inter.variable} font-sans antialiased bg-slate-950 text-slate-100 min-h-dvh`}
+        className={`${inter.variable} font-sans antialiased bg-slate-50 text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
       >
         <OfflineBanner />
-        <main className="pb-20">{children}</main>
+        <main className="pb-24">{children}</main>
         <BottomNav />
         <Toaster />
       </body>

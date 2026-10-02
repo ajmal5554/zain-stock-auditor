@@ -19,9 +19,9 @@ const toggleGroupItemVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white data-[state=on]:bg-indigo-600 data-[state=on]:text-white data-[state=on]:shadow-md data-[state=on]:shadow-indigo-600/30",
+          "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[state=on]:bg-indigo-600 data-[state=on]:text-white data-[state=on]:shadow-sm",
         outline:
-          "border border-slate-700/80 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-white data-[state=on]:border-indigo-500 data-[state=on]:bg-indigo-600/15 data-[state=on]:text-indigo-400",
+          "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 data-[state=on]:border-indigo-600 data-[state=on]:bg-indigo-50 data-[state=on]:text-indigo-700 data-[state=on]:font-bold",
       },
       size: {
         default: "h-10 px-3.5 py-2",

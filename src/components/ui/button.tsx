@@ -9,19 +9,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 hover:bg-indigo-500 hover:shadow-indigo-600/40",
+          "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 hover:bg-indigo-700 hover:shadow-indigo-600/40",
         destructive:
-          "bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:bg-rose-500",
+          "bg-rose-600 text-white shadow-sm shadow-rose-600/20 hover:bg-rose-700",
         outline:
-          "border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:border-slate-500 hover:text-white",
+          "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 shadow-2xs",
         secondary:
-          "bg-slate-800 text-slate-100 hover:bg-slate-700/80 border border-slate-700/60",
+          "bg-slate-100 text-slate-800 hover:bg-slate-200/80 border border-slate-200/80",
         ghost:
-          "text-slate-300 hover:bg-slate-800/80 hover:text-white",
+          "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
         success:
-          "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 hover:shadow-emerald-600/45",
+          "bg-emerald-600 text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-700 hover:shadow-emerald-600/40",
         accent:
-          "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25 hover:opacity-95",
+          "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 hover:opacity-95",
       },
       size: {
         default: "h-11 px-4 py-2",

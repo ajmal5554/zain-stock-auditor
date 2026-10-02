@@ -176,13 +176,13 @@ export default function InventoryPage() {
       {/* ── Header ── */}
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <span>Live Inventory</span>
             <Badge variant="subtle" className="text-[10px] font-semibold">
               Real-time
             </Badge>
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Storewide physical counts & valuations
           </p>
         </div>
@@ -204,40 +204,40 @@ export default function InventoryPage() {
       {/* ── KPI Metric Cards ── */}
       <div className="grid grid-cols-3 gap-2.5 mb-5">
         {/* Total Pieces */}
-        <Card className="p-3.5 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border-indigo-500/20 text-center">
-          <div className="w-8 h-8 mx-auto rounded-xl bg-indigo-600/20 flex items-center justify-center text-indigo-400 mb-2 border border-indigo-500/30">
+        <Card className="p-3.5 bg-indigo-50/70 border-indigo-100 text-center shadow-xs">
+          <div className="w-8 h-8 mx-auto rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 mb-2">
             <Package size={16} />
           </div>
-          <div className="text-xl font-black text-white tracking-tight">
+          <div className="text-xl font-black text-slate-900 tracking-tight">
             {totalPcs.toLocaleString("en-IN")}
           </div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
             Total Pcs
           </div>
         </Card>
 
         {/* Garment Styles */}
-        <Card className="p-3.5 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 border-purple-500/20 text-center">
-          <div className="w-8 h-8 mx-auto rounded-xl bg-purple-600/20 flex items-center justify-center text-purple-400 mb-2 border border-purple-500/30">
+        <Card className="p-3.5 bg-purple-50/70 border-purple-100 text-center shadow-xs">
+          <div className="w-8 h-8 mx-auto rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 mb-2">
             <Layers size={16} />
           </div>
-          <div className="text-xl font-black text-white tracking-tight">
+          <div className="text-xl font-black text-slate-900 tracking-tight">
             {uniqueStyles}
           </div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
             Styles
           </div>
         </Card>
 
         {/* Inventory Value */}
-        <Card className="p-3.5 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/20 text-center">
-          <div className="w-8 h-8 mx-auto rounded-xl bg-emerald-600/20 flex items-center justify-center text-emerald-400 mb-2 border border-emerald-500/30">
+        <Card className="p-3.5 bg-emerald-50/70 border-emerald-100 text-center shadow-xs">
+          <div className="w-8 h-8 mx-auto rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 mb-2">
             <IndianRupee size={16} />
           </div>
-          <div className="text-sm font-black text-emerald-400 tracking-tight truncate">
+          <div className="text-sm font-black text-emerald-700 tracking-tight truncate">
             {formatINR(totalValue)}
           </div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
             Value
           </div>
         </Card>
@@ -259,7 +259,7 @@ export default function InventoryPage() {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
             >
               <X size={14} />
             </button>
@@ -269,7 +269,7 @@ export default function InventoryPage() {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-10 px-3 rounded-xl border border-slate-700/80 bg-slate-900/90 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500"
+          className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10"
         >
           <option value="">All Categories</option>
           {categories.map((c) => (
@@ -283,20 +283,20 @@ export default function InventoryPage() {
       {/* ── Products List ── */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <Loader2 size={32} className="animate-spin text-indigo-500" />
-          <p className="text-xs text-slate-400">Loading live stock data...</p>
+          <Loader2 size={32} className="animate-spin text-indigo-600" />
+          <p className="text-xs text-slate-500">Loading live stock data...</p>
         </div>
       ) : products.length === 0 ? (
-        <Card className="text-center py-16 px-6">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-800/80 flex items-center justify-center text-slate-500 mb-4 border border-slate-700">
+        <Card className="text-center py-16 px-6 bg-white border-slate-200">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4 border border-slate-200">
             <Package size={28} />
           </div>
-          <h3 className="text-base font-bold text-white mb-1">
+          <h3 className="text-base font-bold text-slate-900 mb-1">
             {search || categoryFilter
               ? "No matching garments found"
               : "No stock recorded yet"}
           </h3>
-          <p className="text-xs text-slate-400 max-w-xs mx-auto mb-5">
+          <p className="text-xs text-slate-500 max-w-xs mx-auto mb-5">
             {search || categoryFilter
               ? "Try adjusting your search terms or filter."
               : "Scan racks and add physical counts to see live inventory analytics."}
@@ -320,38 +320,38 @@ export default function InventoryPage() {
             return (
               <Card
                 key={product.id}
-                className="overflow-hidden border-slate-800 transition-all hover:border-slate-700"
+                className="overflow-hidden border-slate-200/90 bg-white shadow-xs transition-all hover:border-slate-300 hover:shadow-sm"
               >
                 {/* Header card banner */}
                 <button
                   type="button"
                   onClick={() => toggleExpand(product.id)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-800/30 transition-colors"
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/80 transition-colors"
                 >
                   <div className="flex-1 min-w-0 pr-3">
                     <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                      <Badge variant="default" className="text-[10px] py-0">
+                      <Badge variant="default" className="text-[10px] py-0 font-medium">
                         {product.category.name}
                       </Badge>
                       {product.pattern && (
-                        <Badge variant="subtle" className="text-[10px] py-0">
+                        <Badge variant="subtle" className="text-[10px] py-0 font-medium">
                           {product.pattern}
                         </Badge>
                       )}
                       {product.fabric && (
-                        <Badge variant="outline" className="text-[10px] py-0">
+                        <Badge variant="outline" className="text-[10px] py-0 font-medium">
                           {product.fabric}
                         </Badge>
                       )}
                     </div>
 
-                    <h3 className="text-sm font-bold text-white truncate">
+                    <h3 className="text-sm font-bold text-slate-900 truncate">
                       {product.brand}
                     </h3>
 
-                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                       {product.sleeve && <span>{product.sleeve}</span>}
-                      <span className="font-bold text-emerald-400">
+                      <span className="font-bold text-emerald-600">
                         ₹{product.mrp}
                       </span>
                     </div>
@@ -359,14 +359,14 @@ export default function InventoryPage() {
 
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <div className="text-lg font-black text-white">
+                      <div className="text-lg font-black text-slate-900">
                         {totalQty}
                       </div>
                       <div className="text-[10px] uppercase font-semibold text-slate-400">
                         Pcs
                       </div>
                     </div>
-                    <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
                       {isExpanded ? (
                         <ChevronUp size={16} />
                       ) : (
@@ -378,10 +378,10 @@ export default function InventoryPage() {
 
                 {/* Expanded variant breakdown */}
                 {isExpanded && (
-                  <div className="border-t border-slate-800 bg-slate-950/60 p-3.5 space-y-2 animate-slide-up">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1 mb-2">
+                  <div className="border-t border-slate-100 bg-slate-50/70 p-3.5 space-y-2 animate-slide-up">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 px-1 mb-2">
                       <span>Size Breakdown</span>
-                      <span>Tap quantity to edit</span>
+                      <span>Tap count to recount</span>
                     </div>
 
                     <div className="space-y-1.5">
@@ -390,7 +390,7 @@ export default function InventoryPage() {
                         return (
                           <div
                             key={v.id}
-                            className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800/80"
+                            className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/90 shadow-2xs"
                           >
                             <div className="flex items-center gap-2">
                               <Badge
@@ -461,17 +461,17 @@ export default function InventoryPage() {
                               <button
                                 type="button"
                                 onClick={() => startEdit(v)}
-                                className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/20 hover:border-indigo-500/40 border border-transparent transition-all group"
+                                className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:border-indigo-200 border border-slate-200/70 transition-all group"
                               >
-                                <span className="text-sm font-extrabold text-white">
+                                <span className="text-sm font-extrabold text-slate-900">
                                   {v.quantity}
                                 </span>
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-slate-500">
                                   pcs
                                 </span>
                                 <Edit3
                                   size={12}
-                                  className="text-slate-500 group-hover:text-indigo-400 transition-colors"
+                                  className="text-slate-400 group-hover:text-indigo-600 transition-colors"
                                 />
                               </button>
                             )}
@@ -481,7 +481,7 @@ export default function InventoryPage() {
                     </div>
 
                     {product.notes && (
-                      <p className="text-[11px] text-slate-400 pt-2 italic border-t border-slate-800/60">
+                      <p className="text-[11px] text-slate-500 pt-2 italic border-t border-slate-200">
                         Notes: {product.notes}
                       </p>
                     )}
