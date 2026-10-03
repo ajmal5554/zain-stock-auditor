@@ -255,12 +255,12 @@ export default function SettingsPage() {
     if (!confirm(`Are you sure you want to delete brand "${brand.name}"?`)) return;
 
     try {
-      const url = brand.id ? `/api/brands?id=${brand.id}` : `/api/brands?name=${encodeURIComponent(brand.name)}`;
+      const url = `/api/brands?id=${brand.id || ""}&name=${encodeURIComponent(brand.name)}`;
       const res = await fetch(url, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete brand");
 
       setBrands((prev) => prev.filter((b) => b.name !== brand.name));
-      toast.success(`Brand "${brand.name}" removed`);
+      toast.success(`Brand "${brand.name}" permanently deleted`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to remove brand");

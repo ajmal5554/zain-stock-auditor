@@ -10,98 +10,45 @@ interface BrandRow {
   updatedAt?: string;
 }
 
+function matchesCategory(categories: string[] | undefined, targetCategory: string): boolean {
+  if (!categories || categories.length === 0) return true;
+  if (categories.includes("*")) return true;
+
+  const targetLower = targetCategory.toLowerCase().trim();
+  const targetClean = targetLower.replace(/s\b|&.*$/g, "").trim();
+
+  return categories.some((c) => {
+    const cLower = c.toLowerCase().trim();
+    if (cLower === targetLower) return true;
+    const cClean = cLower.replace(/s\b|&.*$/g, "").trim();
+    if (cClean && targetClean && (targetLower.includes(cClean) || cLower.includes(targetClean))) {
+      return true;
+    }
+    return false;
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get("category")?.trim();
 
-    // Fetch brands from Brand table
+    // Fetch brands exclusively from Brand table (single source of truth)
     const dbBrands = (await sql`
       SELECT id, name, categories FROM "Brand" ORDER BY name ASC;
     `) as BrandRow[];
 
-    // Fetch distinct brands from Product table
-    const productBrands = (await sql`
-      SELECT DISTINCT brand FROM "Product" WHERE brand IS NOT NULL AND brand != '';
-    `) as { brand: string }[];
-
     if (categoryParam) {
-      // Find category-specific brands:
-      // Match if brand has categoryParam in categories array OR has '*' (universal)
-      const matched = dbBrands.filter((b) => {
-        if (!b.categories || b.categories.length === 0) return true;
-        return (
-          b.categories.includes("*") ||
-          b.categories.some(
-            (c) => c.toLowerCase() === categoryParam.toLowerCase()
-          )
-        );
-      });
-
-      // Also find brands already audited under this category
-      const catProducts = (await sql`
-        SELECT DISTINCT p.brand
-        FROM "Product" p
-        JOIN "Category" c ON p."categoryId" = c.id
-        WHERE LOWER(c.name) = LOWER(${categoryParam})
-        AND p.brand IS NOT NULL AND p.brand != '';
-      `) as { brand: string }[];
-
-      const brandMap = new Map<string, { id?: string; name: string; categories: string[] }>();
-
-      // Add matched category brands
-      for (const b of matched) {
-        brandMap.set(b.name.toLowerCase(), b);
-      }
-
-      // Add brands from existing products in this category
-      for (const pb of catProducts) {
-        if (!brandMap.has(pb.brand.toLowerCase())) {
-          brandMap.set(pb.brand.toLowerCase(), {
-            name: pb.brand,
-            categories: [categoryParam],
-          });
-        }
-      }
-
-      // If category has few or no brands matched, include default popular brands
-      if (brandMap.size < 5) {
-        for (const b of dbBrands) {
-          if (!brandMap.has(b.name.toLowerCase())) {
-            brandMap.set(b.name.toLowerCase(), b);
-          }
-        }
-      }
-
-      const results = Array.from(brandMap.values()).sort((a, b) =>
-        a.name.localeCompare(b.name)
+      // Return brands specifically configured for this category (or universal '*')
+      const matched = dbBrands.filter((b) =>
+        matchesCategory(b.categories, categoryParam)
       );
 
-      return NextResponse.json(results);
+      return NextResponse.json(matched);
     }
 
-    // No category filter: return full catalog of brands
-    const brandMap = new Map<string, { id?: string; name: string; categories: string[] }>();
-
-    for (const b of dbBrands) {
-      brandMap.set(b.name.toLowerCase(), b);
-    }
-
-    // Merge any brands found in Product that might not be in Brand table
-    for (const pb of productBrands) {
-      if (!brandMap.has(pb.brand.toLowerCase())) {
-        brandMap.set(pb.brand.toLowerCase(), {
-          name: pb.brand,
-          categories: ["*"],
-        });
-      }
-    }
-
-    const allBrands = Array.from(brandMap.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-
-    return NextResponse.json(allBrands);
+    // No category filter: return all registered brands in directory
+    return NextResponse.json(dbBrands);
   } catch (error) {
     console.error("Failed to fetch brands:", error);
     // Fallback to static list if database connection error
@@ -216,7 +163,9 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Brand ID or Name is required" }, { status: 400 });
     }
 
-    if (id) {
+    if (id && name) {
+      await sql`DELETE FROM "Brand" WHERE id = ${id} OR LOWER(name) = LOWER(${name.trim()});`;
+    } else if (id) {
       await sql`DELETE FROM "Brand" WHERE id = ${id};`;
     } else if (name) {
       await sql`DELETE FROM "Brand" WHERE LOWER(name) = LOWER(${name.trim()});`;

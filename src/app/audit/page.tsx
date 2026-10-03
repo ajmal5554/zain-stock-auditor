@@ -194,28 +194,22 @@ export default function AuditPage() {
     return cleanup;
   }, []);
 
-  // Fetch category-specific brands when category changes
+  // Fetch category-specific brands when category changes, or all brands initially
   useEffect(() => {
-    if (!selectedCategoryName) return;
+    const url = selectedCategoryName
+      ? `/api/brands?category=${encodeURIComponent(selectedCategoryName)}`
+      : "/api/brands";
 
-    const catParam = encodeURIComponent(selectedCategoryName);
-    fetch(`/api/brands?category=${catParam}`)
+    fetch(url)
       .then((r) => r.json())
       .then((data: ({ name: string } | string)[]) => {
+        if (!Array.isArray(data)) return;
         const brandNames = data.map((b) => (typeof b === "string" ? b : b.name));
-
-        let custom: string[] = [];
-        try {
-          custom = JSON.parse(
-            localStorage.getItem(`zain_cat_brands_${selectedCategoryName}`) || "[]"
-          );
-        } catch {}
-
-        const merged = Array.from(new Set([...brandNames, ...custom])).sort((a, b) =>
+        const sorted = Array.from(new Set(brandNames)).sort((a, b) =>
           a.localeCompare(b)
         );
-        setBrands(merged);
-        setFilteredBrands(merged);
+        setBrands(sorted);
+        setFilteredBrands(sorted);
       })
       .catch(() => {});
   }, [selectedCategoryName]);
@@ -231,7 +225,7 @@ export default function AuditPage() {
       )
         return;
 
-      // 1. Post to API to persist in database
+      // 1. Post to API to persist in Neon PostgreSQL database
       fetch("/api/brands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,22 +235,12 @@ export default function AuditPage() {
         }),
       }).catch(() => {});
 
-      // 2. Cache locally
-      try {
-        const key = selectedCategoryName
-          ? `zain_cat_brands_${selectedCategoryName}`
-          : "zain_custom_brands";
-        const custom: string[] = JSON.parse(localStorage.getItem(key) || "[]");
-        if (!custom.includes(trimmed)) {
-          custom.push(trimmed);
-          localStorage.setItem(key, JSON.stringify(custom));
-        }
-        setBrands((prev) =>
-          Array.from(new Set([...prev, trimmed])).sort((a, b) => a.localeCompare(b))
-        );
-      } catch {}
+      // 2. Immediately update local brands state so it appears in suggestions right away
+      setBrands((prev) => Array.from(new Set([trimmed, ...prev])));
+      setFilteredBrands((prev) => Array.from(new Set([trimmed, ...prev])));
+      setValue("brand", trimmed);
     },
-    [selectedCategoryName]
+    [selectedCategoryName, setValue]
   );
 
 type CategoryScale = { id: string; name: string; sizes: string[]; default?: boolean };
