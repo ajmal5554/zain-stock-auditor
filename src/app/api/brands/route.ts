@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface BrandRow {
   id: string;
   name: string;
@@ -27,6 +30,12 @@ function matchesCategory(categories: string[] | undefined, targetCategory: strin
   });
 }
 
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -38,19 +47,16 @@ export async function GET(request: Request) {
     `) as BrandRow[];
 
     if (categoryParam) {
-      // Return brands specifically configured for this category (or universal '*')
       const matched = dbBrands.filter((b) =>
         matchesCategory(b.categories, categoryParam)
       );
-
-      return NextResponse.json(matched);
+      return NextResponse.json(matched, { headers: NO_CACHE_HEADERS });
     }
 
-    // No category filter: return all registered brands in directory
-    return NextResponse.json(dbBrands);
+    return NextResponse.json(dbBrands, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to fetch brands:", error);
-    return NextResponse.json([]);
+    return NextResponse.json([], { headers: NO_CACHE_HEADERS });
   }
 }
 
@@ -84,12 +90,15 @@ export async function POST(request: Request) {
         WHERE id = ${existing[0].id};
       `;
 
-      return NextResponse.json({
-        id: existing[0].id,
-        name: existing[0].name,
-        categories: mergedCats,
-        updated: true,
-      });
+      return NextResponse.json(
+        {
+          id: existing[0].id,
+          name: existing[0].name,
+          categories: mergedCats,
+          updated: true,
+        },
+        { headers: NO_CACHE_HEADERS }
+      );
     }
 
     await sql`
@@ -97,12 +106,12 @@ export async function POST(request: Request) {
       VALUES (${id}, ${name}, ${categories}, NOW(), NOW());
     `;
 
-    return NextResponse.json({ id, name, categories, created: true }, { status: 201 });
+    return NextResponse.json({ id, name, categories, created: true }, { status: 201, headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to create/update brand:", error);
     return NextResponse.json(
       { error: "Failed to save brand", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }
@@ -137,12 +146,12 @@ export async function PATCH(request: Request) {
       `;
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to update brand:", error);
     return NextResponse.json(
       { error: "Failed to update brand", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }
@@ -150,27 +159,54 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    const name = searchParams.get("name");
+    const id = searchParams.get("id")?.trim();
+    const name = searchParams.get("name")?.trim();
+    const all = searchParams.get("all") === "true";
+
+    // Bulk delete all brands
+    if (all) {
+      await sql`DELETE FROM "Brand";`;
+      return NextResponse.json({ success: true, message: "All brands deleted" }, { headers: NO_CACHE_HEADERS });
+    }
+
+    // Bulk delete specific IDs or names if passed in JSON body
+    let bodyIds: string[] = [];
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await request.json();
+        if (Array.isArray(body?.ids)) {
+          bodyIds = body.ids.filter(Boolean);
+        }
+      } catch {}
+    }
+
+    if (bodyIds.length > 0) {
+      await sql`DELETE FROM "Brand" WHERE id = ANY(${bodyIds}) OR name = ANY(${bodyIds});`;
+      return NextResponse.json(
+        { success: true, count: bodyIds.length },
+        { headers: NO_CACHE_HEADERS }
+      );
+    }
 
     if (!id && !name) {
       return NextResponse.json({ error: "Brand ID or Name is required" }, { status: 400 });
     }
 
     if (id && name) {
-      await sql`DELETE FROM "Brand" WHERE id = ${id} OR LOWER(name) = LOWER(${name.trim()});`;
+      await sql`DELETE FROM "Brand" WHERE id = ${id} OR LOWER(name) = LOWER(${name});`;
     } else if (id) {
       await sql`DELETE FROM "Brand" WHERE id = ${id};`;
     } else if (name) {
-      await sql`DELETE FROM "Brand" WHERE LOWER(name) = LOWER(${name.trim()});`;
+      await sql`DELETE FROM "Brand" WHERE LOWER(name) = LOWER(${name});`;
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to delete brand:", error);
     return NextResponse.json(
       { error: "Failed to delete brand", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

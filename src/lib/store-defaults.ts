@@ -1,7 +1,7 @@
-import "dotenv/config";
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.DATABASE_URL!);
+/**
+ * Default starter constants for Store Setup
+ * Pure constants without any database queries or execution side effects.
+ */
 
 export const DEFAULT_CATEGORIES = [
   "Formal Shirts",
@@ -334,50 +334,3 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     patterns: ["Checks / Tartan", "Fun Prints", "Solid / Plain", "Stripes"],
   },
 };
-
-async function seedStore() {
-  console.log("🚀 Seeding store defaults into Neon...");
-
-  // 1. Categories
-  console.log("Seeding categories...");
-  for (const cat of DEFAULT_CATEGORIES) {
-    const existing = await sql`SELECT id FROM "Category" WHERE name = ${cat};`;
-    if (existing.length === 0) {
-      const id = "cat_" + Math.random().toString(36).substring(2, 9);
-      await sql`INSERT INTO "Category" (id, name, "createdAt") VALUES (${id}, ${cat}, NOW());`;
-      console.log(`  + Category: ${cat}`);
-    }
-  }
-
-  // 2. Brands with Categories
-  console.log("Seeding brands with category mappings...");
-  for (const b of DEFAULT_BRANDS) {
-    const id = "brd_" + Math.random().toString(36).substring(2, 9);
-    await sql`
-      INSERT INTO "Brand" (id, name, categories, "createdAt", "updatedAt")
-      VALUES (${id}, ${b.name}, ${b.categories}, NOW(), NOW())
-      ON CONFLICT (name) DO UPDATE SET categories = ${b.categories}, "updatedAt" = NOW();
-    `;
-    console.log(`  + Brand: ${b.name} -> [${b.categories.join(", ")}]`);
-  }
-
-  // 3. Store Settings (Size Scales & Attributes)
-  console.log("Seeding store settings (size scales & attributes)...");
-  await sql`
-    INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
-    VALUES ('st_scales', 'category_size_scales', ${JSON.stringify(DEFAULT_CATEGORY_SIZE_SCALES)}::jsonb, NOW())
-    ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(DEFAULT_CATEGORY_SIZE_SCALES)}::jsonb, "updatedAt" = NOW();
-  `;
-
-  await sql`
-    INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
-    VALUES ('st_attrs', 'category_attributes', ${JSON.stringify(DEFAULT_CATEGORY_ATTRIBUTES)}::jsonb, NOW())
-    ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(DEFAULT_CATEGORY_ATTRIBUTES)}::jsonb, "updatedAt" = NOW();
-  `;
-
-  console.log("✅ Store seeding completed successfully!");
-}
-
-if (process.argv[1]?.includes("seed-store-data")) {
-  seedStore().catch(console.error);
-}

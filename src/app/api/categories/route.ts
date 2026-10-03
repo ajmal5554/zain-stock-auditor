@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { categorySchema } from "@/lib/schemas";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 interface CategoryRow {
   id: string;
   name: string;
@@ -26,12 +35,12 @@ export async function GET() {
       },
     }));
 
-    return NextResponse.json(formatted);
+    return NextResponse.json(formatted, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to fetch categories:", error);
     return NextResponse.json(
       { error: "Failed to fetch categories", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

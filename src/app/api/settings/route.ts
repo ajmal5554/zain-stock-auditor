@@ -3,7 +3,16 @@ import { sql } from "@/lib/db";
 import {
   DEFAULT_CATEGORY_SIZE_SCALES,
   DEFAULT_CATEGORY_ATTRIBUTES,
-} from "../../../../scripts/seed-store-data";
+} from "@/lib/store-defaults";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
 
 export async function GET() {
   try {
@@ -25,18 +34,24 @@ export async function GET() {
     }
 
     // Return whatever is in database (even if empty); only fallback if setting never initialized
-    return NextResponse.json({
-      sizeScales: sizeScales ?? {},
-      attributes: attributes ?? {},
-      hasSavedSettings: rows.length > 0,
-    });
+    return NextResponse.json(
+      {
+        sizeScales: sizeScales ?? {},
+        attributes: attributes ?? {},
+        hasSavedSettings: rows.length > 0,
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
   } catch (error) {
     console.error("Failed to load store settings:", error);
-    return NextResponse.json({
-      sizeScales: {},
-      attributes: {},
-      hasSavedSettings: false,
-    });
+    return NextResponse.json(
+      {
+        sizeScales: {},
+        attributes: {},
+        hasSavedSettings: false,
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
   }
 }
 

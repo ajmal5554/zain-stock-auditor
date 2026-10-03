@@ -154,6 +154,8 @@ export default function SettingsPage() {
   const [brandToDelete, setBrandToDelete] = useState<BrandItem | null>(null);
   const [isDeleteBrandOpen, setIsDeleteBrandOpen] = useState(false);
   const [isClearAllBrandsOpen, setIsClearAllBrandsOpen] = useState(false);
+  const [selectedBrandNames, setSelectedBrandNames] = useState<string[]>([]);
+  const [deletingBrands, setDeletingBrands] = useState(false);
 
   // Size Scale State
   const [selectedScaleCategory, setSelectedScaleCategory] = useState<string>("");
@@ -175,11 +177,19 @@ export default function SettingsPage() {
   const [isDeleteCatOpen, setIsDeleteCatOpen] = useState(false);
   const [deletingCat, setDeletingCat] = useState(false);
 
-  // Load Data from Backend
+  // Load Data from Backend (always fresh, no browser caching)
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const catRes = await fetch("/api/categories");
+      const noCacheOptions: RequestInit = {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+      };
+
+      const catRes = await fetch("/api/categories", noCacheOptions);
       if (catRes.ok) {
         const catData: Category[] = await catRes.json();
         setCategories(catData);
@@ -189,7 +199,7 @@ export default function SettingsPage() {
         }
       }
 
-      const brandRes = await fetch("/api/brands");
+      const brandRes = await fetch("/api/brands", noCacheOptions);
       if (brandRes.ok) {
         const brandData: (BrandItem | string)[] = await brandRes.json();
         const formatted: BrandItem[] = (brandData || []).map((b) => {
@@ -199,7 +209,7 @@ export default function SettingsPage() {
         setBrands(formatted);
       }
 
-      const settingsRes = await fetch("/api/settings");
+      const settingsRes = await fetch("/api/settings", noCacheOptions);
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
         setSizeScales(settingsData.sizeScales || {});
@@ -283,33 +293,67 @@ export default function SettingsPage() {
     }
   };
 
-  const handleConfirmDeleteBrand = async () => {
-    if (!brandToDelete) return;
+  const handleInstantDeleteBrand = async (brand: BrandItem) => {
+    // Optimistically remove from state immediately
+    setBrands((prev) => prev.filter((b) => b.name !== brand.name));
+    setSelectedBrandNames((prev) => prev.filter((n) => n !== brand.name));
     try {
-      const url = `/api/brands?id=${brandToDelete.id || ""}&name=${encodeURIComponent(brandToDelete.name)}`;
+      const url = `/api/brands?id=${brand.id || ""}&name=${encodeURIComponent(brand.name)}`;
       const res = await fetch(url, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
-      setBrands((prev) => prev.filter((b) => b.name !== brandToDelete.name));
-      toast.success(`"${brandToDelete.name}" permanently deleted`);
+      toast.success(`"${brand.name}" permanently deleted`);
     } catch {
-      toast.error("Failed to delete brand");
+      toast.error(`Failed to delete "${brand.name}"`);
+      loadData();
+    }
+  };
+
+  const handleConfirmDeleteBrand = async () => {
+    if (!brandToDelete) return;
+    const b = brandToDelete;
+    setIsDeleteBrandOpen(false);
+    setBrandToDelete(null);
+    await handleInstantDeleteBrand(b);
+  };
+
+  const handleDeleteSelectedBrands = async () => {
+    if (selectedBrandNames.length === 0) return;
+    const toDelete = [...selectedBrandNames];
+    setDeletingBrands(true);
+    // Optimistic removal
+    setBrands((prev) => prev.filter((b) => !toDelete.includes(b.name)));
+    setSelectedBrandNames([]);
+    try {
+      const res = await fetch("/api/brands", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: toDelete }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Deleted ${toDelete.length} brand${toDelete.length > 1 ? "s" : ""}`);
+    } catch {
+      toast.error("Failed to delete selected brands");
+      loadData();
     } finally {
-      setIsDeleteBrandOpen(false);
-      setBrandToDelete(null);
+      setDeletingBrands(false);
     }
   };
 
   const handleClearAllBrands = async () => {
+    setDeletingBrands(true);
+    setIsClearAllBrandsOpen(false);
+    // Optimistic clear
+    setBrands([]);
+    setSelectedBrandNames([]);
     try {
-      for (const b of brands) {
-        await fetch(`/api/brands?id=${b.id || ""}&name=${encodeURIComponent(b.name)}`, { method: "DELETE" });
-      }
-      setBrands([]);
-      toast.success("All brands cleared");
+      const res = await fetch("/api/brands?all=true", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to clear");
+      toast.success("All brands permanently deleted from database");
     } catch {
-      toast.error("Failed to clear some brands");
+      toast.error("Failed to clear all brands");
+      loadData();
     } finally {
-      setIsClearAllBrandsOpen(false);
+      setDeletingBrands(false);
     }
   };
 
@@ -346,6 +390,26 @@ export default function SettingsPage() {
       return b.categories.some((c) => c.toLowerCase() === brandCategoryFilter.toLowerCase());
     });
   }, [brands, brandSearch, brandCategoryFilter]);
+
+  const isAllFilteredSelected =
+    filteredBrands.length > 0 &&
+    filteredBrands.every((b) => selectedBrandNames.includes(b.name));
+
+  const toggleSelectAllBrands = () => {
+    if (isAllFilteredSelected) {
+      const filteredNames = new Set(filteredBrands.map((b) => b.name));
+      setSelectedBrandNames((prev) => prev.filter((n) => !filteredNames.has(n)));
+    } else {
+      const combined = new Set([...selectedBrandNames, ...filteredBrands.map((b) => b.name)]);
+      setSelectedBrandNames(Array.from(combined));
+    }
+  };
+
+  const toggleBrandSelection = (brandName: string) => {
+    setSelectedBrandNames((prev) =>
+      prev.includes(brandName) ? prev.filter((n) => n !== brandName) : [...prev, brandName]
+    );
+  };
 
   // ═══════════════════════════════ SIZE SCALE ACTIONS ═══════════════════════════════
   const currentCategoryScales: SizeScale[] = useMemo(() => {
@@ -852,8 +916,42 @@ export default function SettingsPage() {
               </select>
             </div>
 
-            <div className="text-[11px] text-slate-400 px-1">
-              Showing {filteredBrands.length} of {brands.length} brands
+            {/* Top Toolbar: Showing count, Select All, Delete Selected */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+              <div className="flex items-center gap-2">
+                {filteredBrands.length > 0 && (
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 select-none">
+                    <input
+                      type="checkbox"
+                      checked={isAllFilteredSelected}
+                      onChange={toggleSelectAllBrands}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                    />
+                    <span className="text-[11px] font-medium">Select All</span>
+                  </label>
+                )}
+                <span className="text-[11px] text-slate-400">
+                  Showing {filteredBrands.length} of {brands.length} brands
+                </span>
+              </div>
+
+              {selectedBrandNames.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-indigo-600 font-semibold">
+                    {selectedBrandNames.length} selected
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleDeleteSelectedBrands}
+                    disabled={deletingBrands}
+                    className="h-7 text-xs bg-rose-600 hover:bg-rose-700 text-white gap-1 font-medium shadow-2xs"
+                  >
+                    <Trash2 size={12} />
+                    Delete Selected ({selectedBrandNames.length})
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Brands Grid */}
@@ -861,20 +959,32 @@ export default function SettingsPage() {
               {filteredBrands.map((b) => (
                 <div
                   key={b.name}
-                  className="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-2 hover:border-slate-300 transition-all shadow-2xs"
+                  className={`bg-white border rounded-lg p-3 flex items-center justify-between gap-2 hover:border-slate-300 transition-all shadow-2xs ${
+                    selectedBrandNames.includes(b.name)
+                      ? "border-indigo-300 bg-indigo-50/20"
+                      : "border-slate-200"
+                  }`}
                 >
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm text-slate-800 truncate">{b.name}</div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {b.categories.includes("*") || b.categories.length === 0 ? (
-                        <span className="text-[10px] text-slate-400">All categories</span>
-                      ) : (
-                        b.categories.slice(0, 3).map((cat) => (
-                          <span key={cat} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                            {cat}
-                          </span>
-                        ))
-                      )}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedBrandNames.includes(b.name)}
+                      onChange={() => toggleBrandSelection(b.name)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm text-slate-800 truncate">{b.name}</div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {b.categories.includes("*") || b.categories.length === 0 ? (
+                          <span className="text-[10px] text-slate-400">All categories</span>
+                        ) : (
+                          b.categories.slice(0, 3).map((cat) => (
+                            <span key={cat} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                              {cat}
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -891,14 +1001,11 @@ export default function SettingsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setBrandToDelete(b);
-                        setIsDeleteBrandOpen(true);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                      title={`Delete ${b.name}`}
+                      onClick={() => handleInstantDeleteBrand(b)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                      title={`Permanently delete ${b.name}`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>

@@ -185,7 +185,13 @@ export default function AuditPage() {
       ? `/api/brands?category=${encodeURIComponent(selectedCategoryName)}`
       : "/api/brands";
 
-    fetch(url)
+    fetch(url, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
+    })
       .then((r) => r.json())
       .then((data: ({ name: string } | string)[]) => {
         if (!Array.isArray(data)) return;
