@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { DesktopNav } from "@/components/desktop-nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { Toaster } from "@/components/toaster";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -14,7 +15,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Zain Stock Auditor",
   description:
-    "Fast, mobile-first physical stock audit tool for Zain Gents Palace",
+    "Fast, mobile-first and desktop-ready physical stock audit tool for Zain Gents Palace",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -47,7 +48,8 @@ export default function RootLayout({
       >
         <PwaInstaller />
         <OfflineBanner />
-        <main className="pb-24">{children}</main>
+        <DesktopNav />
+        <main className="pb-24 md:pb-12 min-h-[calc(100vh-64px)]">{children}</main>
         <BottomNav />
         <Toaster />
       </body>

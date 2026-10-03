@@ -552,289 +552,315 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-28 md:pb-16">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 py-3.5">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-600/30">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
                 <SlidersHorizontal size={18} />
               </div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">
-                Catalog & Store Settings
-              </h1>
+              <div>
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+                  Catalog & Store Settings
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Manage brands by category, size scales & garment attributes
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Manage brands by category, size scales & garment attributes
-            </p>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8 gap-1.5 border-slate-200 text-slate-600 hover:text-slate-900 sm:hidden"
+              onClick={loadData}
+              disabled={loading}
+            >
+              <RotateCcw size={13} className={loading ? "animate-spin" : ""} />
+              Sync
+            </Button>
           </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs h-8 gap-1.5 border-slate-200 text-slate-600 hover:text-slate-900"
-            onClick={loadData}
-            disabled={loading}
-          >
-            <RotateCcw size={13} className={loading ? "animate-spin" : ""} />
-            Sync
-          </Button>
-        </div>
+          <div className="flex items-center gap-3">
+            {/* Tab Bar */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto scrollbar-none w-full sm:w-auto">
+              <button
+                onClick={() => setActiveTab("brands")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  activeTab === "brands"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Tag size={13} />
+                <span>Brands ({brands.length})</span>
+              </button>
 
-        {/* Tab Bar */}
-        <div className="max-w-2xl mx-auto mt-3 flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab("brands")}
-            className={`flex-1 min-w-[90px] py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === "brands"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Tag size={13} />
-            <span>Brands</span>
-          </button>
+              <button
+                onClick={() => setActiveTab("scales")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  activeTab === "scales"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Shirt size={13} />
+                <span>Size Scales</span>
+              </button>
 
-          <button
-            onClick={() => setActiveTab("scales")}
-            className={`flex-1 min-w-[100px] py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === "scales"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Shirt size={13} />
-            <span>Size Scales</span>
-          </button>
+              <button
+                onClick={() => setActiveTab("attributes")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  activeTab === "attributes"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Layers size={13} />
+                <span>Attributes</span>
+              </button>
 
-          <button
-            onClick={() => setActiveTab("attributes")}
-            className={`flex-1 min-w-[95px] py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === "attributes"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Layers size={13} />
-            <span>Attributes</span>
-          </button>
+              <button
+                onClick={() => setActiveTab("categories")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  activeTab === "categories"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <FolderPlus size={13} />
+                <span>Categories ({categories.length})</span>
+              </button>
+            </div>
 
-          <button
-            onClick={() => setActiveTab("categories")}
-            className={`flex-1 min-w-[95px] py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === "categories"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <FolderPlus size={13} />
-            <span>Categories</span>
-          </button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-9 gap-1.5 border-slate-200 text-slate-600 hover:text-slate-900 hidden sm:inline-flex"
+              onClick={loadData}
+              disabled={loading}
+            >
+              <RotateCcw size={13} className={loading ? "animate-spin" : ""} />
+              Sync Neon
+            </Button>
+          </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* =========================================================================
             TAB 1: BRANDS BY CATEGORY
         ========================================================================= */}
         {activeTab === "brands" && (
-          <div className="space-y-4">
-            {/* Quick Info Box */}
-            <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl p-3 flex items-start gap-2.5 text-xs text-indigo-900">
-              <HelpCircle size={16} className="text-indigo-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Category-Smart Brands:</span> When you audit a category (e.g. <em>Innerwears</em> or <em>Mundus</em>), only brands assigned to that category appear as suggestions and quick-tap pills!
-              </div>
-            </div>
-
-            {/* Add Brand Card */}
-            <Card className="border-slate-200/90 shadow-sm bg-white">
-              <CardHeader className="pb-3 pt-4 px-4">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
-                  <Plus size={16} className="text-indigo-600" />
-                  Add New Brand / Company
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500">
-                  Enter brand name and choose the categories it belongs to
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-3">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g. Chromozome, Dollar, Puma..."
-                    value={newBrandName}
-                    onChange={(e) => setNewBrandName(e.target.value)}
-                    className="h-10 text-sm bg-white"
-                  />
-                  <Button
-                    onClick={handleAddBrand}
-                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 shrink-0"
-                  >
-                    <Plus size={14} className="mr-1" />
-                    Add Brand
-                  </Button>
-                </div>
-
-                {/* Categories selector pills */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Info Box + Add Brand (5 cols) */}
+            <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
+              <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-indigo-900 shadow-2xs">
+                <HelpCircle size={16} className="text-indigo-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                      Assign Categories:
+                  <span className="font-bold">Category-Smart Brands:</span> When you audit a garment category (e.g. <em>Innerwears</em> or <em>Mundus</em>), only brands assigned to that category appear as suggestions and quick-tap pills!
+                </div>
+              </div>
+
+              {/* Add Brand Card */}
+              <Card className="border-slate-200/90 shadow-xs bg-white">
+                <CardHeader className="pb-3 pt-4 px-4 border-b border-slate-100">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
+                    <Plus size={16} className="text-indigo-600" />
+                    Add New Brand / Company
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Enter brand name and choose the categories it belongs to
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3.5">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Brand / Manufacturer Name
                     </label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewBrandCategories((prev) =>
-                          prev.length === categories.length ? [] : categories.map((c) => c.name)
-                        )
-                      }
-                      className="text-[11px] text-indigo-600 hover:underline font-medium"
-                    >
-                      {newBrandCategories.length === categories.length ? "Clear All" : "Select All"}
-                    </button>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g. Chromozome, Dollar, Ramraj..."
+                        value={newBrandName}
+                        onChange={(e) => setNewBrandName(e.target.value)}
+                        className="h-10 text-xs bg-white"
+                      />
+                      <Button
+                        onClick={handleAddBrand}
+                        className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 shrink-0 shadow-xs"
+                      >
+                        <Plus size={14} className="mr-1" />
+                        Add Brand
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newBrandCategories.includes("*")) {
-                          setNewBrandCategories([]);
-                        } else {
-                          setNewBrandCategories(["*"]);
+
+                  {/* Categories selector pills */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                        Assign Categories:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewBrandCategories((prev) =>
+                            prev.length === categories.length ? [] : categories.map((c) => c.name)
+                          )
                         }
-                      }}
-                      className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all ${
-                        newBrandCategories.includes("*")
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      ★ Universal (All Categories)
-                    </button>
-                    {categories.map((c) => {
-                      const isSelected = newBrandCategories.includes(c.name);
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => {
-                            setNewBrandCategories((prev) => {
-                              const withoutUniversal = prev.filter((p) => p !== "*");
-                              if (withoutUniversal.includes(c.name)) {
-                                return withoutUniversal.filter((p) => p !== c.name);
-                              }
-                              return [...withoutUniversal, c.name];
-                            });
-                          }}
-                          className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all ${
-                            isSelected
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                          }`}
-                        >
-                          {isSelected && <Check size={11} className="inline mr-1" />}
-                          {c.name}
-                        </button>
-                      );
-                    })}
+                        className="text-[11px] text-indigo-600 hover:underline font-medium"
+                      >
+                        {newBrandCategories.length === categories.length ? "Clear All" : "Select All"}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newBrandCategories.includes("*")) {
+                            setNewBrandCategories([]);
+                          } else {
+                            setNewBrandCategories(["*"]);
+                          }
+                        }}
+                        className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all ${
+                          newBrandCategories.includes("*")
+                            ? "bg-indigo-600 text-white shadow-xs font-bold"
+                            : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        ★ Universal (All Categories)
+                      </button>
+                      {categories.map((c) => {
+                        const isSelected = newBrandCategories.includes(c.name);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setNewBrandCategories((prev) => {
+                                const withoutUniversal = prev.filter((p) => p !== "*");
+                                if (withoutUniversal.includes(c.name)) {
+                                  return withoutUniversal.filter((p) => p !== c.name);
+                                }
+                                return [...withoutUniversal, c.name];
+                              });
+                            }}
+                            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all ${
+                              isSelected
+                                ? "bg-indigo-600 text-white shadow-xs font-bold"
+                                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {isSelected && <Check size={11} className="inline mr-1" />}
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Filter and Search Bar */}
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-                  <Input
-                    placeholder="Search brands..."
-                    value={brandSearch}
-                    onChange={(e) => setBrandSearch(e.target.value)}
-                    className="pl-8 h-9 text-xs bg-white border-slate-200"
-                  />
-                </div>
-                <select
-                  value={brandCategoryFilter}
-                  onChange={(e) => setBrandCategoryFilter(e.target.value)}
-                  className="h-9 text-xs px-3 rounded-md bg-white border border-slate-200 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="ALL">All Categories ({brands.length})</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="text-[11px] text-slate-500 px-1">
-                Showing {filteredBrands.length} of {brands.length} brands
-              </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Brands List */}
-            <div className="space-y-2">
-              {filteredBrands.map((b) => (
-                <div
-                  key={b.name}
-                  className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-xs flex items-center justify-between hover:border-slate-300 transition-colors"
-                >
-                  <div className="space-y-1 pr-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900">{b.name}</span>
-                      {b.categories.includes("*") && (
-                        <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-normal">
-                          All Categories
-                        </Badge>
+            {/* Right Column: Search + Brands Grid (7 cols) */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Filter and Search Bar */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-xs space-y-2">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                    <Input
+                      placeholder="Search brands directory..."
+                      value={brandSearch}
+                      onChange={(e) => setBrandSearch(e.target.value)}
+                      className="pl-8 h-9 text-xs bg-slate-50 border-slate-200 focus:bg-white"
+                    />
+                  </div>
+                  <select
+                    value={brandCategoryFilter}
+                    onChange={(e) => setBrandCategoryFilter(e.target.value)}
+                    className="h-9 text-xs px-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 font-semibold focus:outline-none focus:bg-white focus:border-indigo-600"
+                  >
+                    <option value="ALL">All Categories ({brands.length})</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-[11px] font-medium text-slate-500 px-1">
+                  Showing {filteredBrands.length} of {brands.length} registered brands
+                </div>
+              </div>
+
+              {/* Brands Grid (2-columns on tablet/desktop) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredBrands.map((b) => (
+                  <div
+                    key={b.name}
+                    className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-sm transition-all"
+                  >
+                    <div className="space-y-1.5 mb-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm text-slate-900">{b.name}</span>
+                        {b.categories.includes("*") && (
+                          <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-normal">
+                            All Categories
+                          </Badge>
+                        )}
+                      </div>
+
+                      {!b.categories.includes("*") && (
+                        <div className="flex flex-wrap gap-1">
+                          {b.categories.map((cat) => (
+                            <span
+                              key={cat}
+                              className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100"
+                            >
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {!b.categories.includes("*") && (
-                      <div className="flex flex-wrap gap-1">
-                        {b.categories.map((cat) => (
-                          <span
-                            key={cat}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-medium border border-indigo-100"
-                          >
-                            {cat}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingBrand(b);
-                        setEditBrandCategories(b.categories);
-                        setIsEditDialogOpen(true);
-                      }}
-                      className="h-8 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteBrand(b)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 size={14} />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingBrand(b);
+                          setEditBrandCategories(b.categories);
+                          setIsEditDialogOpen(true);
+                        }}
+                        className="h-7 px-2.5 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-semibold"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteBrand(b)}
+                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {filteredBrands.length === 0 && (
-                <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                  No brands match the selected filter.
-                </div>
-              )}
+                {filteredBrands.length === 0 && (
+                  <div className="sm:col-span-2 text-center py-12 bg-white border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                    No brands match the selected filter.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -843,146 +869,170 @@ export default function SettingsPage() {
             TAB 2: CATEGORY SIZE SCALES & NUMBER ATTRIBUTES
         ========================================================================= */}
         {activeTab === "scales" && (
-          <div className="space-y-4">
-            {/* Category Selector */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardContent className="p-3">
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
-                  Select Category to Configure Sizes:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {categories.map((c) => {
-                    const isSelected = selectedScaleCategory === c.name;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setSelectedScaleCategory(c.name)}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                          isSelected
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {c.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Scale Management for Selected Category */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">
-                  Size Scales for: <span className="text-indigo-600">{selectedScaleCategory}</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  E.g., Innerwears: Adults (75-100), Kids (50-75); Mundus: Single/Double
-                </p>
-              </div>
-
-              <Button
-                size="sm"
-                onClick={() => setIsAddScaleOpen(true)}
-                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-              >
-                <Plus size={13} className="mr-1" />
-                Add Scale
-              </Button>
-            </div>
-
-            {/* Size Scales List */}
-            <div className="space-y-3">
-              {currentCategoryScales.map((scale) => (
-                <Card key={scale.id} className="border-slate-200 bg-white shadow-xs">
-                  <CardHeader className="py-2.5 px-4 bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-slate-800">{scale.name}</span>
-                      {scale.default && (
-                        <Badge variant="outline" className="text-[10px] h-4 text-emerald-700 bg-emerald-50 border-emerald-200">
-                          Default
-                        </Badge>
-                      )}
-                    </div>
-                    {currentCategoryScales.length > 1 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveScale(scale.id)}
-                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
-                      >
-                        <Trash2 size={13} />
-                      </Button>
-                    )}
-                  </CardHeader>
-
-                  <CardContent className="p-3 space-y-2.5">
-                    {/* Size Chips */}
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      {scale.sizes.map((sz) => (
-                        <span
-                          key={sz}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200"
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Category Selector + Actions (4 cols) */}
+            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-24">
+              <Card className="border-slate-200 bg-white shadow-xs">
+                <CardHeader className="py-3 px-4 border-b border-slate-100">
+                  <CardTitle className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Select Category to Configure
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <div className="flex flex-col gap-1">
+                    {categories.map((c) => {
+                      const isSelected = selectedScaleCategory === c.name;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedScaleCategory(c.name)}
+                          className={`text-left text-xs px-3 py-2 rounded-lg font-semibold flex items-center justify-between transition-all ${
+                            isSelected
+                              ? "bg-indigo-600 text-white shadow-xs font-bold"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
                         >
-                          {sz}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSizeFromScale(scale.id, sz)}
-                            className="text-slate-400 hover:text-red-600"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
+                          <span>{c.name}</span>
+                          <span className={`text-[10px] ${isSelected ? "text-indigo-100" : "text-slate-400"}`}>
+                            {sizeScales[c.name]?.length || 1} scale(s)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
 
-                      {scale.sizes.length === 0 && (
-                        <span className="text-xs text-slate-400 italic">No sizes defined</span>
-                      )}
-                    </div>
+              <Card className="p-4 bg-indigo-50/70 border-indigo-100 text-xs text-indigo-900 space-y-2">
+                <div className="font-bold flex items-center gap-1.5 text-indigo-800">
+                  <Shirt size={15} />
+                  <span>Size System Guide</span>
+                </div>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Different departments have different sizing rules:
+                  <br />• <strong>Innerwears:</strong> Adults (75 - 100), Kids (50 - 75).
+                  <br />• <strong>Mundus:</strong> Single / Double length.
+                  <br />• <strong>Shirts / T-Shirts:</strong> Alpha (S - 3XL) or Collar inches (38 - 44).
+                </p>
+              </Card>
 
-                    {/* Quick Add Size to Scale */}
-                    <div className="flex gap-1.5 max-w-xs pt-1">
-                      <Input
-                        placeholder="Add size (e.g. 110, 52, 4XL)"
-                        value={scaleSizeInput[scale.id] || ""}
-                        onChange={(e) =>
-                          setScaleSizeInput((prev) => ({
-                            ...prev,
-                            [scale.id]: e.target.value,
-                          }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddSizeToScale(scale.id);
-                          }
-                        }}
-                        className="h-8 text-xs bg-white"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAddSizeToScale(scale.id)}
-                        className="h-8 text-xs font-medium px-2.5 shrink-0"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-2">
               <Button
                 onClick={() => saveAllSettings(sizeScales, undefined)}
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 shadow-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 shadow-xs"
               >
                 <Save size={14} className="mr-1.5" />
-                {saving ? "Saving..." : "Save Size Scales to Cloud"}
+                {saving ? "Saving Changes..." : "Save Size Scales to Cloud"}
               </Button>
+            </div>
+
+            {/* Right Column: Size Scales Cards Grid (8 cols) */}
+            <div className="lg:col-span-8 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-200">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Size Scales for: <span className="text-indigo-600 font-extrabold">{selectedScaleCategory}</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Scales configured here automatically populate the size matrix on the Audit screen.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => setIsAddScaleOpen(true)}
+                  className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shrink-0"
+                >
+                  <Plus size={13} className="mr-1" />
+                  Add New Scale
+                </Button>
+              </div>
+
+              {/* Size Scales Grid (2 cols on tablet/desktop) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {currentCategoryScales.map((scale) => (
+                  <Card key={scale.id} className="border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                    <div>
+                      <CardHeader className="py-2.5 px-4 bg-slate-50/80 border-b border-slate-100 flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-800">{scale.name}</span>
+                          {scale.default && (
+                            <Badge variant="outline" className="text-[10px] h-4 text-emerald-700 bg-emerald-50 border-emerald-200">
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                        {currentCategoryScales.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveScale(scale.id)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        )}
+                      </CardHeader>
+
+                      <CardContent className="p-3.5 space-y-3">
+                        {/* Size Chips */}
+                        <div className="flex flex-wrap gap-1.5 items-center min-h-[48px]">
+                          {scale.sizes.map((sz) => (
+                            <span
+                              key={sz}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200"
+                            >
+                              {sz}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSizeFromScale(scale.id, sz)}
+                                className="text-slate-400 hover:text-red-600 text-sm font-bold"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+
+                          {scale.sizes.length === 0 && (
+                            <span className="text-xs text-slate-400 italic">No sizes defined</span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </div>
+
+                    {/* Quick Add Size to Scale */}
+                    <div className="p-3 pt-0 border-t border-slate-100 mt-2">
+                      <div className="flex gap-1.5 pt-2">
+                        <Input
+                          placeholder="Add size (e.g. 110, 52, 4XL)"
+                          value={scaleSizeInput[scale.id] || ""}
+                          onChange={(e) =>
+                            setScaleSizeInput((prev) => ({
+                              ...prev,
+                              [scale.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddSizeToScale(scale.id);
+                            }
+                          }}
+                          className="h-8 text-xs bg-white"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddSizeToScale(scale.id)}
+                          className="h-8 text-xs font-medium px-2.5 shrink-0"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -991,267 +1041,300 @@ export default function SettingsPage() {
             TAB 3: GARMENT ATTRIBUTES (COLLARS, SLEEVES, HOODIES, SUBTYPES)
         ========================================================================= */}
         {activeTab === "attributes" && (
-          <div className="space-y-4">
-            {/* Category Selector */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardContent className="p-3">
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
-                  Select Category to Configure Attributes:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {categories.map((c) => {
-                    const isSelected = selectedAttrCategory === c.name;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setSelectedAttrCategory(c.name)}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                          isSelected
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {c.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Category Selector + Info (4 cols) */}
+            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-24">
+              <Card className="border-slate-200 bg-white shadow-xs">
+                <CardHeader className="py-3 px-4 border-b border-slate-100">
+                  <CardTitle className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Select Category to Configure Attributes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <div className="flex flex-col gap-1">
+                    {categories.map((c) => {
+                      const isSelected = selectedAttrCategory === c.name;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedAttrCategory(c.name)}
+                          className={`text-left text-xs px-3 py-2 rounded-lg font-semibold flex items-center justify-between transition-all ${
+                            isSelected
+                              ? "bg-indigo-600 text-white shadow-xs font-bold"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span>{c.name}</span>
+                          <span className={`text-[10px] ${isSelected ? "text-indigo-100" : "text-slate-400"}`}>
+                            {Object.values(attributes[c.name] || {}).flat().length} tags
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <div className="text-xs text-slate-500">
-              Configuring attributes for <strong className="text-slate-800">{selectedAttrCategory}</strong>. These attributes (such as Hooded collars, Brief/Trunk subtypes, Sleeves) dynamically appear in the Audit screen.
-            </div>
+              <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900 space-y-1.5 shadow-2xs">
+                <div className="font-bold flex items-center gap-1.5 text-indigo-800">
+                  <Layers size={14} />
+                  <span>Attribute Configuration</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Configuring attributes for <strong className="text-slate-900">{selectedAttrCategory}</strong>.
+                  These choices (Subtypes, Collars, Sleeves, Fabrics, Patterns, Borders) appear dynamically as quick-select chips during rack audits.
+                </p>
+              </div>
 
-            {/* Innerwears Subtypes (Brief, Trunk, Vest, Drawer) */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs font-bold text-slate-900">
-                  Subtypes / Garment Cuts (e.g. Brief, Trunk, Vest, Boxer Brief)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {(currentCategoryAttrs.subtypes || []).map((st) => (
-                    <span
-                      key={st}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100"
-                    >
-                      {st}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttributeTag("subtypes", st)}
-                        className="text-indigo-400 hover:text-red-600"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {(!currentCategoryAttrs.subtypes || currentCategoryAttrs.subtypes.length === 0) && (
-                    <span className="text-xs text-slate-400 italic">None configured</span>
-                  )}
-                </div>
-                <div className="flex gap-1.5 max-w-sm pt-1">
-                  <Input
-                    placeholder="Add subtype (e.g. Drawer, Gym Vest)"
-                    value={newAttrValue["subtypes"] || ""}
-                    onChange={(e) =>
-                      setNewAttrValue((prev) => ({ ...prev, subtypes: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddAttributeTag("subtypes");
-                      }
-                    }}
-                    className="h-8 text-xs bg-white"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddAttributeTag("subtypes")}
-                    className="h-8 text-xs px-3"
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Neck / Collar Types (Polo, Round Neck, Hooded/Hoodie, etc.) */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs font-bold text-slate-900">
-                  Collar / Neck Styles (e.g. Polo / Collar, Round Neck, Hooded / Hoodie, V-Neck)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {(currentCategoryAttrs.collars || []).map((col) => (
-                    <span
-                      key={col}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-100"
-                    >
-                      {col}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttributeTag("collars", col)}
-                        className="text-blue-400 hover:text-red-600"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {(!currentCategoryAttrs.collars || currentCategoryAttrs.collars.length === 0) && (
-                    <span className="text-xs text-slate-400 italic">None configured</span>
-                  )}
-                </div>
-                <div className="flex gap-1.5 max-w-sm pt-1">
-                  <Input
-                    placeholder="Add collar style (e.g. Hooded, Henley)"
-                    value={newAttrValue["collars"] || ""}
-                    onChange={(e) =>
-                      setNewAttrValue((prev) => ({ ...prev, collars: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddAttributeTag("collars");
-                      }
-                    }}
-                    className="h-8 text-xs bg-white"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddAttributeTag("collars")}
-                    className="h-8 text-xs px-3"
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Sleeves */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs font-bold text-slate-900">
-                  Sleeve Options (e.g. Full Sleeve, Half Sleeve, Sleeveless)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {(currentCategoryAttrs.sleeves || []).map((slv) => (
-                    <span
-                      key={slv}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200"
-                    >
-                      {slv}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttributeTag("sleeves", slv)}
-                        className="text-slate-400 hover:text-red-600"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {(!currentCategoryAttrs.sleeves || currentCategoryAttrs.sleeves.length === 0) && (
-                    <span className="text-xs text-slate-400 italic">None configured</span>
-                  )}
-                </div>
-                <div className="flex gap-1.5 max-w-sm pt-1">
-                  <Input
-                    placeholder="Add sleeve (e.g. Roll-up Sleeve)"
-                    value={newAttrValue["sleeves"] || ""}
-                    onChange={(e) =>
-                      setNewAttrValue((prev) => ({ ...prev, sleeves: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddAttributeTag("sleeves");
-                      }
-                    }}
-                    className="h-8 text-xs bg-white"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddAttributeTag("sleeves")}
-                    className="h-8 text-xs px-3"
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Fabrics */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
-                <CardTitle className="text-xs font-bold text-slate-900">
-                  Fabrics & Materials
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {(currentCategoryAttrs.fabrics || []).map((fab) => (
-                    <span
-                      key={fab}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
-                    >
-                      {fab}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttributeTag("fabrics", fab)}
-                        className="text-amber-400 hover:text-red-600"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {(!currentCategoryAttrs.fabrics || currentCategoryAttrs.fabrics.length === 0) && (
-                    <span className="text-xs text-slate-400 italic">None configured</span>
-                  )}
-                </div>
-                <div className="flex gap-1.5 max-w-sm pt-1">
-                  <Input
-                    placeholder="Add fabric (e.g. Bamboo Cotton)"
-                    value={newAttrValue["fabrics"] || ""}
-                    onChange={(e) =>
-                      setNewAttrValue((prev) => ({ ...prev, fabrics: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddAttributeTag("fabrics");
-                      }
-                    }}
-                    className="h-8 text-xs bg-white"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddAttributeTag("fabrics")}
-                    className="h-8 text-xs px-3"
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-end pt-2">
               <Button
                 onClick={() => saveAllSettings(undefined, attributes)}
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 shadow-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 shadow-xs"
               >
                 <Save size={14} className="mr-1.5" />
-                {saving ? "Saving..." : "Save Attributes to Cloud"}
+                {saving ? "Saving Changes..." : "Save Attributes to Cloud"}
               </Button>
+            </div>
+
+            {/* Right Column: Attribute Cards Grid (8 cols) */}
+            <div className="lg:col-span-8 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Innerwears Subtypes */}
+                <Card className="border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                  <div>
+                    <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
+                      <CardTitle className="text-xs font-bold text-slate-900">
+                        Subtypes / Cuts (Brief, Trunk, Vest...)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3.5 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 min-h-[44px]">
+                        {(currentCategoryAttrs.subtypes || []).map((st) => (
+                          <span
+                            key={st}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100"
+                          >
+                            {st}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttributeTag("subtypes", st)}
+                              className="text-indigo-400 hover:text-red-600 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {(!currentCategoryAttrs.subtypes || currentCategoryAttrs.subtypes.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">None configured</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </div>
+                  <div className="p-3 pt-0 border-t border-slate-100 mt-2">
+                    <div className="flex gap-1.5 pt-2">
+                      <Input
+                        placeholder="Add subtype (e.g. Drawer, Gym Vest)"
+                        value={newAttrValue["subtypes"] || ""}
+                        onChange={(e) =>
+                          setNewAttrValue((prev) => ({ ...prev, subtypes: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddAttributeTag("subtypes");
+                          }
+                        }}
+                        className="h-8 text-xs bg-white"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddAttributeTag("subtypes")}
+                        className="h-8 text-xs px-3 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Neck / Collar Types */}
+                <Card className="border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                  <div>
+                    <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
+                      <CardTitle className="text-xs font-bold text-slate-900">
+                        Collar / Neck Styles (Polo, Round, Hooded...)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3.5 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 min-h-[44px]">
+                        {(currentCategoryAttrs.collars || []).map((col) => (
+                          <span
+                            key={col}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-100"
+                          >
+                            {col}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttributeTag("collars", col)}
+                              className="text-blue-400 hover:text-red-600 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {(!currentCategoryAttrs.collars || currentCategoryAttrs.collars.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">None configured</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </div>
+                  <div className="p-3 pt-0 border-t border-slate-100 mt-2">
+                    <div className="flex gap-1.5 pt-2">
+                      <Input
+                        placeholder="Add collar style (e.g. Hooded, Henley)"
+                        value={newAttrValue["collars"] || ""}
+                        onChange={(e) =>
+                          setNewAttrValue((prev) => ({ ...prev, collars: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddAttributeTag("collars");
+                          }
+                        }}
+                        className="h-8 text-xs bg-white"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddAttributeTag("collars")}
+                        className="h-8 text-xs px-3 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Sleeves */}
+                <Card className="border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                  <div>
+                    <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
+                      <CardTitle className="text-xs font-bold text-slate-900">
+                        Sleeve Options (Full, Half, Sleeveless)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3.5 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 min-h-[44px]">
+                        {(currentCategoryAttrs.sleeves || []).map((slv) => (
+                          <span
+                            key={slv}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200"
+                          >
+                            {slv}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttributeTag("sleeves", slv)}
+                              className="text-slate-400 hover:text-red-600 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {(!currentCategoryAttrs.sleeves || currentCategoryAttrs.sleeves.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">None configured</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </div>
+                  <div className="p-3 pt-0 border-t border-slate-100 mt-2">
+                    <div className="flex gap-1.5 pt-2">
+                      <Input
+                        placeholder="Add sleeve (e.g. 3/4 Sleeve)"
+                        value={newAttrValue["sleeves"] || ""}
+                        onChange={(e) =>
+                          setNewAttrValue((prev) => ({ ...prev, sleeves: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddAttributeTag("sleeves");
+                          }
+                        }}
+                        className="h-8 text-xs bg-white"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddAttributeTag("sleeves")}
+                        className="h-8 text-xs px-3 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Fabrics */}
+                <Card className="border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                  <div>
+                    <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100">
+                      <CardTitle className="text-xs font-bold text-slate-900">
+                        Fabrics & Materials (Cotton, Linen...)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3.5 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 min-h-[44px]">
+                        {(currentCategoryAttrs.fabrics || []).map((fab) => (
+                          <span
+                            key={fab}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
+                          >
+                            {fab}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttributeTag("fabrics", fab)}
+                              className="text-amber-400 hover:text-red-600 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {(!currentCategoryAttrs.fabrics || currentCategoryAttrs.fabrics.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">None configured</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </div>
+                  <div className="p-3 pt-0 border-t border-slate-100 mt-2">
+                    <div className="flex gap-1.5 pt-2">
+                      <Input
+                        placeholder="Add fabric (e.g. Modal, Lycra)"
+                        value={newAttrValue["fabrics"] || ""}
+                        onChange={(e) =>
+                          setNewAttrValue((prev) => ({ ...prev, fabrics: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddAttributeTag("fabrics");
+                          }
+                        }}
+                        className="h-8 text-xs bg-white"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddAttributeTag("fabrics")}
+                        className="h-8 text-xs px-3 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
             </div>
           </div>
         )}
@@ -1260,82 +1343,100 @@ export default function SettingsPage() {
             TAB 4: CATEGORIES MANAGER
         ========================================================================= */}
         {activeTab === "categories" && (
-          <div className="space-y-4">
-            {/* Add Category */}
-            <Card className="border-slate-200 bg-white shadow-xs">
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <FolderPlus size={16} className="text-indigo-600" />
-                  Add New Store Category
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500">
-                  Create high-level sections (e.g. Blazers, Nightwear, Boys Ethnic)
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Category name..."
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    className="h-10 text-sm bg-white"
-                  />
-                  <Button
-                    onClick={handleAddCategory}
-                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 shrink-0"
-                  >
-                    <Plus size={14} className="mr-1" />
-                    Create
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Categories List */}
-            <div className="space-y-2">
-              <div className="text-xs font-semibold text-slate-600 px-1">
-                Active Store Categories ({categories.length})
-              </div>
-
-              {categories.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex items-center justify-between"
-                >
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Add Category Form (5 cols) */}
+            <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
+              <Card className="border-slate-200 bg-white shadow-xs">
+                <CardHeader className="py-3 px-4 border-b border-slate-100">
+                  <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FolderPlus size={16} className="text-indigo-600" />
+                    Add New Store Department / Category
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Create store categories (e.g. Blazers, Nightwear, Boys Ethnic, Lungis)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
                   <div>
-                    <span className="font-bold text-sm text-slate-900">{c.name}</span>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {c._count?.products || 0} product style(s) recorded
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Department Name
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Category name..."
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="h-10 text-xs bg-white"
+                      />
+                      <Button
+                        onClick={handleAddCategory}
+                        className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 shrink-0 shadow-xs"
+                      >
+                        <Plus size={14} className="mr-1" />
+                        Create
+                      </Button>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setCategoryToRename(c);
-                        setRenameInput(c.name);
-                        setIsRenameOpen(true);
-                      }}
-                      className="h-8 text-xs text-slate-600 hover:text-slate-900"
-                    >
-                      Rename
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setCategoryToDelete(c);
-                        setIsDeleteCatOpen(true);
-                      }}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
+              <div className="bg-slate-100/80 rounded-xl p-4 border border-slate-200 text-xs text-slate-600 space-y-2">
+                <div className="font-bold text-slate-800">
+                  How Categories Work
                 </div>
-              ))}
+                <p className="text-[11px] leading-relaxed">
+                  Every garment item belongs to a category. When you add a new category here, you can then assign dedicated brands to it in the Brands tab, and configure its sizing scales in the Size Scales tab.
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column: Existing Categories Grid (7 cols) */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="text-xs font-bold text-slate-700 px-1 uppercase tracking-wider">
+                Active Store Departments ({categories.length})
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {categories.map((c) => (
+                  <div
+                    key={c.id}
+                    className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all"
+                  >
+                    <div>
+                      <div className="font-bold text-sm text-slate-900">{c.name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {c._count?.products || 0} product style(s) recorded
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-3 border-t border-slate-100 mt-3">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCategoryToRename(c);
+                          setRenameInput(c.name);
+                          setIsRenameOpen(true);
+                        }}
+                        className="h-7 px-2.5 text-xs text-slate-600 hover:text-slate-900 font-semibold"
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCategoryToDelete(c);
+                          setIsDeleteCatOpen(true);
+                        }}
+                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

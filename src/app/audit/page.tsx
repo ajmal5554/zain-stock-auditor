@@ -14,6 +14,7 @@ import {
   Search,
   Tag,
   Zap,
+  Clock,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { auditEntrySchema, type AuditEntryInput } from "@/lib/schemas";
@@ -69,7 +70,17 @@ interface SizeEntry {
   quantity: number;
 }
 
+interface RecentAuditItem {
+  id: string;
+  category: string;
+  brand: string;
+  pieces: number;
+  mrp: number;
+  time: string;
+}
+
 export default function AuditPage() {
+  const [recentAudits, setRecentAudits] = useState<RecentAuditItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [filteredBrands, setFilteredBrands] = useState<string[]>([]);
@@ -436,6 +447,20 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       }
 
       setSaveCount((c) => c + 1);
+      const selectedCatObj = categories.find((c) => c.id === data.categoryId);
+      const countedPieces = data.variants.reduce((s, v) => s + v.quantity, 0);
+      setRecentAudits((prev) => [
+        {
+          id: String(Date.now()),
+          category: selectedCatObj?.name || "Garment",
+          brand: data.brand,
+          pieces: countedPieces,
+          mrp: data.mrp,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+        ...prev.slice(0, 4),
+      ]);
+
       toast(
         `✓ Count saved! (${saveCount + 1} rack styles recorded)`,
         "success"
@@ -486,6 +511,20 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       enqueueOffline("/api/products", "POST", payload);
       toast("Saved offline — will sync once reconnected", "info");
 
+      const selectedCatObj = categories.find((c) => c.id === data.categoryId);
+      const countedPieces = data.variants.reduce((s, v) => s + v.quantity, 0);
+      setRecentAudits((prev) => [
+        {
+          id: String(Date.now()),
+          category: selectedCatObj?.name || "Garment",
+          brand: data.brand,
+          pieces: countedPieces,
+          mrp: data.mrp,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+        ...prev.slice(0, 4),
+      ]);
+
       if (data.brand) {
         rememberBrand(data.brand);
       }
@@ -517,30 +556,41 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSubmit(onSubmit)();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSubmit, onSubmit]);
+
   return (
-    <div className="max-w-lg mx-auto px-4 pt-5 pb-28">
-      {/* ── Header ── */}
-      <header className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20 text-white">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28 md:pb-16">
+      {/* ── Responsive Header ── */}
+      <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200/80">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 flex items-center justify-center shadow-md shadow-indigo-600/20 text-white shrink-0">
             <ShoppingBag size={22} />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 Zain Gents Palace
               </h1>
-              <Badge variant="success" className="text-[10px] py-0 px-2 font-bold">
-                Live
+              <Badge variant="success" className="text-[10px] py-0 px-2 font-bold uppercase tracking-wider">
+                Audit Active
               </Badge>
             </div>
-            <p className="text-xs text-slate-500">
-              Aisle Physical Audit Terminal
+            <p className="text-xs text-slate-500 mt-0.5">
+              Physical stock counting terminal • Category-smart brand & size scaling
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
           {totalItemPieces > 0 && (
             <Button
               type="button"
@@ -548,29 +598,32 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               disabled={submitting}
               variant="success"
               size="sm"
-              className="h-8 gap-1.5 text-xs font-bold shadow-xs animate-fade-in"
+              className="h-9 gap-1.5 text-xs font-bold shadow-xs animate-fade-in px-4"
             >
               {submitting ? (
-                <Loader2 size={13} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin" />
               ) : (
-                <CheckCircle2 size={14} />
+                <CheckCircle2 size={15} />
               )}
-              <span>Save ({totalItemPieces})</span>
+              <span>Save Rack ({totalItemPieces} Pcs)</span>
             </Button>
           )}
 
           {saveCount > 0 && (
-            <Badge variant="subtle" className="text-xs font-semibold px-2.5 py-1">
-              {saveCount} Saved
+            <Badge variant="subtle" className="text-xs font-semibold px-3 py-1.5 border border-slate-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block mr-1.5" />
+              {saveCount} Racks Logged
             </Badge>
           )}
         </div>
       </header>
 
-      {/* ── Audit Entry Form ── */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* ── Category Section ── */}
-        <Card>
+      {/* ── Responsive Form Grid (7 cols left: garment specs, 5 cols right: sizes & save) ── */}
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* ── Left Column: Garment Definition (7 cols on desktop) ── */}
+        <div className="lg:col-span-7 space-y-5">
+          {/* ── Category Section ── */}
+          <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
@@ -1136,12 +1189,31 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           </CardContent>
         </Card>
 
-        {/* ── Size & Physical Count Matrix + Integrated Save Action ── */}
+        {/* ── Notes / Rack Location (Optional) ── */}
         <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+              5. Audit Notes / Rack Location (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Input
+              {...register("notes")}
+              placeholder="e.g. Rack A3, Double pocket, Chinese collar, Box 4..."
+              className="text-xs"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Right Column: Size Matrix, Quick Keypad & Confirmation (5 cols - sticky on desktop) ── */}
+      <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-20">
+        {/* ── Size & Physical Count Matrix + Integrated Save Action ── */}
+        <Card className="border-slate-200/90 shadow-xs">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <div>
               <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                5. Size & Physical Count Matrix
+                6. Size & Physical Count Matrix
               </CardTitle>
               <CardDescription>
                 {totalItemPieces > 0 ? (
@@ -1223,8 +1295,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               </div>
             )}
 
-            {/* Size Steppers Matrix */}
-            <div className="space-y-2">
+            {/* Size Steppers Matrix - 2 columns on tablet & desktop */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {sizes.map((entry, index) => {
                 const activeScale = currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId);
                 const isPreset = activeScale
@@ -1234,14 +1306,14 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                 return (
                   <div
                     key={entry.size}
-                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
                       entry.quantity > 0
-                        ? "bg-emerald-50/70 border-emerald-300 shadow-xs"
+                        ? "bg-emerald-50/80 border-emerald-300 shadow-2xs"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="w-12 text-center text-sm font-extrabold text-slate-800 tracking-tight">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-extrabold text-slate-800 tracking-tight truncate">
                         {entry.size}
                       </span>
                       {!isPreset && (
@@ -1250,20 +1322,20 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                           onClick={() => removeSize(index)}
                           className="text-slate-400 hover:text-rose-500 p-0.5 transition-colors"
                         >
-                          <X size={13} />
+                          <X size={12} />
                         </button>
                       )}
                     </div>
 
                     {/* Stepper buttons */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => updateQuantity(index, -1)}
                         disabled={entry.quantity <= 0}
-                        className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
                       >
-                        <Minus size={16} />
+                        <Minus size={13} />
                       </button>
 
                       <input
@@ -1281,7 +1353,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                           const clean = e.target.value.replace(/[^0-9]/g, "");
                           setQuantity(index, clean ? parseInt(clean, 10) : 0);
                         }}
-                        className={`w-14 h-10 text-center font-extrabold text-lg rounded-xl border transition-all outline-none ${
+                        className={`w-11 h-8 text-center font-extrabold text-sm rounded-lg border transition-all outline-none ${
                           entry.quantity > 0
                             ? "bg-white text-emerald-800 border-emerald-400 font-black shadow-2xs"
                             : "bg-slate-50 text-slate-400 border-slate-200"
@@ -1291,9 +1363,18 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       <button
                         type="button"
                         onClick={() => updateQuantity(index, 1)}
-                        className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all active:scale-90 shadow-2xs"
+                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all active:scale-90 shadow-2xs"
                       >
-                        <Plus size={16} />
+                        <Plus size={13} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(index, 5)}
+                        className="hidden sm:inline-flex h-8 px-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold items-center justify-center transition-all active:scale-90"
+                        title="Add 5 pieces"
+                      >
+                        +5
                       </button>
                     </div>
                   </div>
@@ -1301,7 +1382,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               })}
             </div>
 
-            {/* Direct In-Matrix Save Summary & Action (Thumb-friendly, No overlapping floating bar) */}
+            {/* Direct In-Matrix Save Summary & Action */}
             <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
@@ -1318,12 +1399,12 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                 disabled={submitting || totalItemPieces === 0}
                 variant="success"
                 size="default"
-                className="h-11 px-5 rounded-xl font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2"
+                className="h-10 px-4 rounded-xl font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2"
               >
                 {submitting ? (
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={15} className="animate-spin" />
                 ) : (
-                  <CheckCircle2 size={17} />
+                  <CheckCircle2 size={16} />
                 )}
                 <span>Save Rack</span>
               </Button>
@@ -1337,24 +1418,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           </CardContent>
         </Card>
 
-        {/* ── Notes / Rack Location ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-              6. Audit Notes / Rack Location (Optional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Input
-              {...register("notes")}
-              placeholder="e.g. Rack A3, Double pocket, Chinese collar, Box 4..."
-              className="text-xs"
-            />
-          </CardContent>
-        </Card>
-
-        {/* ── Full-Width Primary Form Submission Action ── */}
-        <div className="pt-2">
+        {/* ── Primary Form Submission Action with Keyboard Shortcut ── */}
+        <div>
           <Button
             type="submit"
             disabled={submitting || totalItemPieces === 0}
@@ -1373,12 +1438,17 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   <CheckCircle2 size={20} />
                   <span>Save & Scan Next Rack</span>
                 </div>
-                <Badge
-                  variant="subtle"
-                  className="bg-black/20 text-white font-bold text-xs px-2.5 py-0.5"
-                >
-                  {totalItemPieces} Pcs
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline text-[11px] text-emerald-100 font-normal">
+                    Ctrl+Enter
+                  </span>
+                  <Badge
+                    variant="subtle"
+                    className="bg-black/20 text-white font-bold text-xs px-2.5 py-0.5"
+                  >
+                    {totalItemPieces} Pcs
+                  </Badge>
+                </div>
               </>
             )}
           </Button>
@@ -1388,7 +1458,43 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             </p>
           )}
         </div>
-      </form>
+
+        {/* ── Recent Session Scans (Instant feedback for desktop & mobile) ── */}
+        {recentAudits.length > 0 && (
+          <Card className="border-slate-200/90 bg-white shadow-xs">
+            <CardHeader className="py-3 px-4 flex-row items-center justify-between space-y-0 border-b border-slate-100">
+              <div className="flex items-center gap-1.5">
+                <Clock size={14} className="text-indigo-600" />
+                <CardTitle className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Recent Session Scans
+                </CardTitle>
+              </div>
+              <Badge variant="subtle" className="text-[10px] font-semibold">
+                {recentAudits.length} Logged
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0 divide-y divide-slate-100">
+              {recentAudits.map((item) => (
+                <div key={item.id} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50/80 transition-colors">
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>{item.brand}</span>
+                      <span className="text-[11px] text-slate-500 font-normal">({item.category})</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      ₹{item.mrp.toLocaleString("en-IN")} MRP • {item.time}
+                    </div>
+                  </div>
+                  <Badge variant="success" className="font-extrabold text-xs py-0.5 px-2.5">
+                    {item.pieces} Pcs
+                  </Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </form>
     </div>
   );
 }

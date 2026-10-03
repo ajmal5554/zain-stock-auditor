@@ -107,211 +107,330 @@ export default function ExportPage() {
     }
   };
 
+  const [previewSearch, setPreviewSearch] = useState("");
+
+  const filteredPreview = preview
+    ? preview.filter(
+        (r) =>
+          r.Category.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Brand.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Size.toLowerCase().includes(previewSearch.toLowerCase())
+      )
+    : [];
+
   return (
-    <div className="max-w-lg mx-auto px-4 pt-5 pb-32">
-      {/* ── Header ── */}
-      <header className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <span>Export Center</span>
-          <Badge variant="subtle" className="text-[10px]">
-            SheetJS & PapaParse
-          </Badge>
-        </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          One-click downloads of physical stock audit reports
-        </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 md:pt-8 pb-32 md:pb-16">
+      {/* ── Responsive Header ── */}
+      <header className="mb-6 pb-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <FileSpreadsheet className="text-emerald-600" size={26} />
+              <span>Export & Audit Reports</span>
+            </h1>
+            <Badge variant="subtle" className="text-[10px] font-bold">
+              Multi-Format
+            </Badge>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 mt-1">
+            Download formatted store inventory workbooks for Excel, accounting software, and physical records.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={handleExcelExport}
+            disabled={loading}
+            variant="success"
+            size="sm"
+            className="gap-2 font-bold shadow-xs"
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            <span>Export Excel (.xlsx)</span>
+          </Button>
+        </div>
       </header>
 
-      {/* ── Export Cards ── */}
-      <div className="space-y-3 mb-6">
-        {/* Excel Card */}
-        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/60 via-white to-white overflow-hidden hover:border-emerald-300 shadow-xs transition-all">
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
-                <FileSpreadsheet size={24} />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Export All to Excel
-                  </h3>
-                  <Badge variant="success" className="text-[10px] py-0 px-1.5">
-                    .xlsx
-                  </Badge>
+      {/* ── 2-Column Responsive Layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Download Cards & Export Options (5 cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="space-y-3">
+            {/* Excel Download Card */}
+            <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-white overflow-hidden hover:border-emerald-300 shadow-xs transition-all">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
+                      <FileSpreadsheet size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-bold text-slate-900">
+                          Microsoft Excel Workbook
+                        </CardTitle>
+                        <Badge variant="success" className="text-[10px] py-0 px-1.5 font-bold">
+                          .xlsx
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        Multi-sheet workbook with automated formulas
+                      </CardDescription>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Full audit sheet + formatted summary sheet
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                <div className="bg-white/80 rounded-xl p-3 border border-emerald-100 text-xs text-slate-600 space-y-1.5">
+                  <div className="flex items-center gap-2 font-medium">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>Sheet 1: Full Itemized Inventory & Size Matrix</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-medium">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>Sheet 2: Category Valuation & Store Stock Summary</span>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleExcelExport}
+                  disabled={loading}
+                  variant="success"
+                  className="w-full gap-2 font-bold shadow-xs py-2.5"
+                >
+                  {loading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  Download Excel Workbook (.xlsx)
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* CSV Download Card */}
+            <Card className="border-blue-200 bg-gradient-to-br from-blue-50/70 via-white to-white overflow-hidden hover:border-blue-300 shadow-xs transition-all">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
+                      <FileText size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-bold text-slate-900">
+                          Raw CSV Spreadsheet
+                        </CardTitle>
+                        <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-bold">
+                          .csv
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        Clean tabular comma-delimited data
+                      </CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                <p className="text-xs text-slate-600">
+                  Ideal for importing into Tally, ERP systems, Google Sheets, or custom retail inventory databases.
+                </p>
+
+                <Button
+                  onClick={handleCSVExport}
+                  disabled={loading}
+                  variant="secondary"
+                  className="w-full gap-2 font-bold shadow-xs py-2.5"
+                >
+                  {loading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  Download Flat CSV (.csv)
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Audit Compatibility Info Card */}
+          <Card className="p-4 bg-slate-50/80 border-slate-200">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-2">
+              <Layers size={14} className="text-indigo-600" />
+              <span>Report Specifications</span>
+            </h4>
+            <div className="space-y-1.5 text-xs text-slate-500">
+              <p>• Data fields: Category, Subtype, Brand, Pattern, Fabric, Sleeve, Size, Quantity, Retail MRP, Valuation.</p>
+              <p>• Currency format: Indian Rupee (₹ INR) with standard Indian numbering formatting.</p>
+              <p>• Live database sync: Direct extraction from Neon Cloud PostgreSQL production branch.</p>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Column: Live Sheet Preview & Data Table (7 cols) */}
+        <div className="lg:col-span-7 space-y-4">
+          <Card className="border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Eye size={16} className="text-indigo-600" />
+                  <span>Live Sheet Preview</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Inspect audit rows before generating file downloads
                 </p>
               </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handlePreview}
+                  disabled={loading}
+                  variant={preview ? "outline" : "default"}
+                  size="sm"
+                  className="gap-1.5 text-xs font-semibold shrink-0"
+                >
+                  {loading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Eye size={14} />
+                  )}
+                  <span>{preview ? "Refresh Preview" : "Load Live Preview"}</span>
+                </Button>
+              </div>
             </div>
 
-            <Button
-              onClick={handleExcelExport}
-              disabled={loading}
-              variant="success"
-              size="sm"
-              className="gap-1.5 shrink-0"
-            >
-              {loading ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Download size={15} />
-              )}
-              Download
-            </Button>
-          </div>
-        </Card>
-
-        {/* CSV Card */}
-        <Card className="border-blue-200 bg-gradient-to-br from-blue-50/60 via-white to-white overflow-hidden hover:border-blue-300 shadow-xs transition-all">
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 shadow-2xs">
-                <FileText size={24} />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Export Filtered to CSV
-                  </h3>
-                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
-                    .csv
-                  </Badge>
+            {/* If stats available, show KPI summary */}
+            {stats && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3.5 bg-indigo-50/40 border-b border-indigo-100">
+                <div className="bg-white p-2.5 rounded-xl border border-indigo-100 text-center">
+                  <div className="text-lg font-black text-slate-900">{stats.rows}</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Total Rows
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Fast, flat tabular spreadsheet file
+                <div className="bg-white p-2.5 rounded-xl border border-indigo-100 text-center">
+                  <div className="text-lg font-black text-indigo-700">
+                    {stats.totalPcs.toLocaleString("en-IN")}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Total Pieces
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-indigo-100 text-center">
+                  <div className="text-lg font-black text-slate-900">
+                    {stats.uniqueStyles}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Garment Styles
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-indigo-100 text-center">
+                  <div className="text-sm sm:text-base font-black text-emerald-700 truncate">
+                    {formatINR(stats.totalValue)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Valuation
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Filter toolbar when preview is loaded */}
+            {preview && (
+              <div className="p-3 border-b border-slate-200 bg-white">
+                <input
+                  type="text"
+                  value={previewSearch}
+                  onChange={(e) => setPreviewSearch(e.target.value)}
+                  placeholder="Filter preview by brand, category, or size..."
+                  className="w-full h-9 px-3 text-xs bg-slate-50 rounded-lg border border-slate-200 outline-none focus:bg-white focus:border-indigo-600 transition-colors"
+                />
+              </div>
+            )}
+
+            {/* Content area */}
+            {!preview ? (
+              <div className="py-16 px-6 text-center">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3 border border-slate-200">
+                  <BarChart3 size={24} />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800 mb-1">
+                  Preview Not Loaded
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                  Click below to fetch and inspect the current audit records before exporting.
                 </p>
+                <Button
+                  onClick={handlePreview}
+                  disabled={loading}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  {loading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Eye size={14} />
+                  )}
+                  Load Audit Records
+                </Button>
               </div>
-            </div>
+            ) : filteredPreview.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500">
+                No rows match &quot;{previewSearch}&quot;
+              </div>
+            ) : (
+              <div>
+                <div className="overflow-x-auto max-h-[460px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                      <TableRow>
+                        <TableHead className="text-xs font-bold py-3 pl-4">Category</TableHead>
+                        <TableHead className="text-xs font-bold">Brand</TableHead>
+                        <TableHead className="text-xs font-bold text-center">Size</TableHead>
+                        <TableHead className="text-xs font-bold text-right">Qty</TableHead>
+                        <TableHead className="text-xs font-bold text-right">MRP</TableHead>
+                        <TableHead className="text-xs font-bold text-right pr-4">Total Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPreview.slice(0, 50).map((row, idx) => (
+                        <TableRow key={row.ID || idx} className="hover:bg-slate-50/70 border-b border-slate-100 text-xs">
+                          <TableCell className="font-semibold text-slate-900 py-2.5 pl-4">
+                            {row.Category}
+                          </TableCell>
+                          <TableCell className="text-slate-800 font-medium">
+                            {row.Brand}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="subtle" className="text-[10px] font-bold px-2 py-0">
+                              {row.Size}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-black text-slate-900">
+                            {row.Quantity}
+                          </TableCell>
+                          <TableCell className="text-right text-slate-600">
+                            ₹{row["MRP (₹)"]}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-emerald-700 pr-4">
+                            ₹{row["Total Value (₹)"].toLocaleString("en-IN")}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
-            <Button
-              onClick={handleCSVExport}
-              disabled={loading}
-              variant="secondary"
-              size="sm"
-              className="gap-1.5 shrink-0"
-            >
-              {loading ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Download size={15} />
-              )}
-              Download
-            </Button>
-          </div>
-        </Card>
+                <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-200 bg-slate-50/60">
+                  Showing {Math.min(50, filteredPreview.length)} of {filteredPreview.length} preview rows. Full export file includes all items.
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
-
-      {/* ── In-browser Audit Preview ── */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Audit Sheet Preview
-        </h2>
-        <Button
-          onClick={handlePreview}
-          disabled={loading}
-          variant="outline"
-          size="sm"
-          className="gap-1 text-xs"
-        >
-          {loading ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Eye size={14} />
-          )}
-          Load Preview
-        </Button>
-      </div>
-
-      {/* Stats summary if preview loaded */}
-      {stats && (
-        <Card className="mb-4 p-4 border-indigo-100 bg-indigo-50/70 shadow-xs animate-fade-in">
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div>
-              <div className="text-base font-black text-slate-900">{stats.rows}</div>
-              <div className="text-[10px] text-slate-500 font-semibold uppercase">
-                Rows
-              </div>
-            </div>
-            <div>
-              <div className="text-base font-black text-slate-900">
-                {stats.totalPcs}
-              </div>
-              <div className="text-[10px] text-slate-500 font-semibold uppercase">
-                Pieces
-              </div>
-            </div>
-            <div>
-              <div className="text-base font-black text-slate-900">
-                {stats.uniqueStyles}
-              </div>
-              <div className="text-[10px] text-slate-500 font-semibold uppercase">
-                Styles
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-black text-emerald-700 truncate">
-                {formatINR(stats.totalValue)}
-              </div>
-              <div className="text-[10px] text-slate-500 font-semibold uppercase">
-                Valuation
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Preview Table */}
-      {preview && (
-        <Card className="overflow-hidden border-slate-200 bg-white shadow-xs animate-slide-up">
-          <div className="overflow-x-auto max-h-96">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">MRP</TableHead>
-                  <TableHead className="text-right">Valuation</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {preview.slice(0, 15).map((row) => (
-                  <TableRow key={row.ID}>
-                    <TableCell className="font-semibold text-xs text-slate-900">
-                      {row.Category}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-700 font-medium">
-                      {row.Brand}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="subtle" className="text-[10px]">
-                        {row.Size}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-slate-900 text-xs">
-                      {row.Quantity}
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-slate-500">
-                      ₹{row["MRP (₹)"]}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-xs text-emerald-700">
-                      ₹{row["Total Value (₹)"]}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {preview.length > 15 && (
-            <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-100 bg-slate-50/50">
-              Showing 15 of {preview.length} rows. Full export includes all items.
-            </div>
-          )}
-        </Card>
-      )}
     </div>
   );
 }
