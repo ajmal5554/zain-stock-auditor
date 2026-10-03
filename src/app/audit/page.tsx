@@ -44,11 +44,6 @@ import {
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import {
-  DEFAULT_CATEGORY_SIZE_SCALES,
-  DEFAULT_CATEGORY_ATTRIBUTES,
-} from "../../../scripts/seed-store-data";
-
 interface Category {
   id: string;
   name: string;
@@ -89,7 +84,7 @@ export default function AuditPage() {
   // Dynamic store settings from database / settings page
   const [storeSizeScales, setStoreSizeScales] = useState<
     Record<string, { id: string; name: string; sizes: string[]; default?: boolean }[]>
-  >(DEFAULT_CATEGORY_SIZE_SCALES);
+  >({});
   const [storeAttributes, setStoreAttributes] = useState<
     Record<
       string,
@@ -103,7 +98,7 @@ export default function AuditPage() {
         borders?: string[];
       }
     >
-  >(DEFAULT_CATEGORY_ATTRIBUTES);
+  >({});
   const [activeScaleId, setActiveScaleId] = useState<string>("");
 
   // Dynamic garment attribute selections
@@ -239,11 +234,17 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     if (storeSizeScales[selectedCategoryName] && storeSizeScales[selectedCategoryName].length > 0) {
       return storeSizeScales[selectedCategoryName];
     }
-    if (isMunduCategory(selectedCategoryName)) {
-      return DEFAULT_CATEGORY_SIZE_SCALES["Mundus & Dhotis"] || [];
+    // Case-insensitive lookup in user settings
+    const targetNorm = selectedCategoryName.toLowerCase().replace(/s\b|&.*$/g, "").trim();
+    for (const [key, scales] of Object.entries(storeSizeScales)) {
+      const keyNorm = key.toLowerCase().replace(/s\b|&.*$/g, "").trim();
+      if ((keyNorm === targetNorm || key.toLowerCase() === selectedCategoryName.toLowerCase()) && scales.length > 0) {
+        return scales;
+      }
     }
-    if (isInnerwearCategory(selectedCategoryName)) {
-      return DEFAULT_CATEGORY_SIZE_SCALES["Innerwears & Undergarments"] || [];
+    // Minimal fallback ONLY if user has not configured any scale
+    if (isMunduCategory(selectedCategoryName)) {
+      return [{ id: "scale_mundu_default", name: "Type", sizes: ["Single", "Double"], default: true }];
     }
     return [
       {
@@ -283,17 +284,19 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     });
   };
 
-  // Attributes for currently selected category
+  // Attributes for currently selected category — strictly follows user settings
   const currentCategoryAttrs = useMemo(() => {
     if (!selectedCategoryName) return {};
     if (storeAttributes[selectedCategoryName]) {
       return storeAttributes[selectedCategoryName];
     }
-    if (isMunduCategory(selectedCategoryName)) {
-      return DEFAULT_CATEGORY_ATTRIBUTES["Mundus & Dhotis"] || {};
-    }
-    if (isInnerwearCategory(selectedCategoryName)) {
-      return DEFAULT_CATEGORY_ATTRIBUTES["Innerwears & Undergarments"] || {};
+    // Case-insensitive lookup in user settings
+    const targetNorm = selectedCategoryName.toLowerCase().replace(/s\b|&.*$/g, "").trim();
+    for (const [key, attrs] of Object.entries(storeAttributes)) {
+      const keyNorm = key.toLowerCase().replace(/s\b|&.*$/g, "").trim();
+      if (keyNorm === targetNorm || key.toLowerCase() === selectedCategoryName.toLowerCase()) {
+        return attrs;
+      }
     }
     return {};
   }, [storeAttributes, selectedCategoryName]);
@@ -763,101 +766,94 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             </div>
 
             {/* Quick brand chips */}
-            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-none pb-0.5">
-              <button
-                type="button"
-                onClick={() => { setValue("brand", "Unbranded"); setShowBrandDropdown(false); }}
-                className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
-                  watchedBrand === "Unbranded"
-                    ? "bg-amber-50 text-amber-800 border-amber-300"
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                <Zap size={10} className="inline mr-0.5 text-amber-500" />
-                Unbranded
-              </button>
-              <button
-                type="button"
-                onClick={() => { setValue("brand", "Local"); setShowBrandDropdown(false); }}
-                className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
-                  watchedBrand === "Local"
-                    ? "bg-indigo-50 text-indigo-800 border-indigo-300"
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                Local
-              </button>
-              {brands
-                .filter((b) => b !== "Unbranded" && b !== "Local")
-                .slice(0, 6)
-                .map((b) => (
+            {brands.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-none pb-0.5">
+                {brands.slice(0, 8).map((b) => (
                   <button
                     key={b}
                     type="button"
-                    onClick={() => { setValue("brand", b); setShowBrandDropdown(false); }}
+                    onClick={() => {
+                      setValue("brand", b);
+                      setShowBrandDropdown(false);
+                    }}
                     className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
                       watchedBrand === b
                         ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     {b}
                   </button>
                 ))}
-            </div>
+              </div>
+            )}
 
             {errors.brand && (
               <p className="text-rose-600 text-xs mt-2">{errors.brand.message}</p>
             )}
           </section>
 
-          {/* Garment Attributes — clean sections */}
+          {/* Garment Attributes — only shows attributes configured by store owner */}
           <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              Attributes
-            </label>
-
-            {/* Subtypes */}
-            <ChipSelector
-              label="Subtype"
-              options={currentCategoryAttrs.subtypes || []}
-              value={selectedSubtype}
-              onChange={setSelectedSubtype}
-            />
-
-            {/* Collars */}
-            <ChipSelector
-              label="Collar / Neck"
-              options={currentCategoryAttrs.collars || []}
-              value={selectedCollar}
-              onChange={setSelectedCollar}
-            />
-
-            {/* Pattern */}
-            <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                Pattern
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                Attributes
               </label>
-              <Controller
-                name="pattern"
-                control={control}
-                render={({ field }) => (
-                  <ToggleGroup
-                    type="single"
-                    value={field.value || ""}
-                    onValueChange={(val) => field.onChange(val || null)}
-                    variant="outline"
-                  >
-                    {(currentCategoryAttrs.patterns || PATTERNS).map((p: string) => (
-                      <ToggleGroupItem key={p} value={p}>{p}</ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                )}
-              />
+              <a
+                href="/settings"
+                className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Configure in Settings →
+              </a>
             </div>
 
+            {/* Subtypes */}
+            {currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0 && (
+              <ChipSelector
+                label="Subtype"
+                options={currentCategoryAttrs.subtypes}
+                value={selectedSubtype}
+                onChange={setSelectedSubtype}
+              />
+            )}
+
+            {/* Collars */}
+            {currentCategoryAttrs.collars && currentCategoryAttrs.collars.length > 0 && (
+              <ChipSelector
+                label="Collar / Neck"
+                options={currentCategoryAttrs.collars}
+                value={selectedCollar}
+                onChange={setSelectedCollar}
+              />
+            )}
+
+            {/* Pattern */}
+            {currentCategoryAttrs.patterns && currentCategoryAttrs.patterns.length > 0 && (
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                  Pattern
+                </label>
+                <Controller
+                  name="pattern"
+                  control={control}
+                  render={({ field }) => (
+                    <ToggleGroup
+                      type="single"
+                      value={field.value || ""}
+                      onValueChange={(val) => field.onChange(val || null)}
+                      variant="outline"
+                    >
+                      {currentCategoryAttrs.patterns!.map((p: string) => (
+                        <ToggleGroupItem key={p} value={p}>{p}</ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  )}
+                />
+              </div>
+            )}
+
             {/* Sleeve */}
-            {showSleeve && (
+            {showSleeve && currentCategoryAttrs.sleeves && currentCategoryAttrs.sleeves.length > 0 && (
               <div className="animate-fade-in">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
                   Sleeve
@@ -872,7 +868,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       onValueChange={(val) => field.onChange(val || null)}
                       variant="outline"
                     >
-                      {(currentCategoryAttrs.sleeves || SLEEVES).map((s: string) => (
+                      {currentCategoryAttrs.sleeves!.map((s: string) => (
                         <ToggleGroupItem key={s} value={s}>{s}</ToggleGroupItem>
                       ))}
                     </ToggleGroup>
@@ -882,30 +878,32 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             )}
 
             {/* Fabric */}
-            <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                Fabric
-              </label>
-              <Controller
-                name="fabric"
-                control={control}
-                render={({ field }) => (
-                  <ToggleGroup
-                    type="single"
-                    value={field.value || ""}
-                    onValueChange={(val) => field.onChange(val || null)}
-                    variant="outline"
-                  >
-                    {(currentCategoryAttrs.fabrics || FABRICS).map((f: string) => (
-                      <ToggleGroupItem key={f} value={f}>{f}</ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                )}
-              />
-            </div>
+            {currentCategoryAttrs.fabrics && currentCategoryAttrs.fabrics.length > 0 && (
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                  Fabric
+                </label>
+                <Controller
+                  name="fabric"
+                  control={control}
+                  render={({ field }) => (
+                    <ToggleGroup
+                      type="single"
+                      value={field.value || ""}
+                      onValueChange={(val) => field.onChange(val || null)}
+                      variant="outline"
+                    >
+                      {currentCategoryAttrs.fabrics!.map((f: string) => (
+                        <ToggleGroupItem key={f} value={f}>{f}</ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  )}
+                />
+              </div>
+            )}
 
             {/* Fit */}
-            {!isMundu && (
+            {!isMundu && currentCategoryAttrs.fits && currentCategoryAttrs.fits.length > 0 && (
               <div className="animate-fade-in">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
                   Fit
@@ -920,7 +918,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       onValueChange={(val) => field.onChange(val || null)}
                       variant="outline"
                     >
-                      {(currentCategoryAttrs.fits || FITS).map((fit: string) => (
+                      {currentCategoryAttrs.fits!.map((fit: string) => (
                         <ToggleGroupItem key={fit} value={fit}>{fit}</ToggleGroupItem>
                       ))}
                     </ToggleGroup>
@@ -930,10 +928,10 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             )}
 
             {/* Mundu Border */}
-            {isMundu && (
+            {isMundu && currentCategoryAttrs.borders && currentCategoryAttrs.borders.length > 0 && (
               <ChipSelector
                 label="Mundu Border / Kasavu"
-                options={currentCategoryAttrs.borders || MUNDU_BORDERS}
+                options={currentCategoryAttrs.borders}
                 value={selectedBorder}
                 onChange={setSelectedBorder}
                 color="amber"

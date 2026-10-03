@@ -109,10 +109,22 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const force = searchParams.get("force") === "true";
 
     if (!id) {
       return NextResponse.json({ error: "Category ID required" }, { status: 400 });
     }
+
+    // Get category name
+    const catRows = (await sql`
+      SELECT name FROM "Category" WHERE id = ${id};
+    `) as { name: string }[];
+
+    if (catRows.length === 0) {
+      return NextResponse.json({ success: true, message: "Category not found or already deleted" });
+    }
+
+    const catName = catRows[0].name;
 
     // Check if category has products
     const productCheck = (await sql`
@@ -120,16 +132,64 @@ export async function DELETE(request: Request) {
     `) as { cnt: string | number }[];
 
     const count = parseInt(String(productCheck[0]?.cnt || 0), 10);
-    if (count > 0) {
+    if (count > 0 && !force) {
       return NextResponse.json(
-        { error: `Cannot delete category: ${count} product style(s) are currently attached to it.` },
+        {
+          error: `Cannot delete category: ${count} product style(s) are currently attached to it.`,
+          hasProducts: true,
+          productCount: count,
+        },
         { status: 400 }
       );
     }
 
+    if (count > 0 && force) {
+      // Cascade delete product variants and products
+      await sql`
+        DELETE FROM "ProductVariant"
+        WHERE "productId" IN (SELECT id FROM "Product" WHERE "categoryId" = ${id});
+      `;
+      await sql`
+        DELETE FROM "Product" WHERE "categoryId" = ${id};
+      `;
+    }
+
+    // Delete category
     await sql`DELETE FROM "Category" WHERE id = ${id};`;
 
-    return NextResponse.json({ success: true });
+    // Clean up category from brands
+    const allBrands = (await sql`
+      SELECT id, categories FROM "Brand" WHERE ${catName} = ANY(categories);
+    `) as { id: string; categories: string[] }[];
+
+    for (const b of allBrands) {
+      const updatedCats = (b.categories || []).filter((c) => c !== catName);
+      await sql`
+        UPDATE "Brand"
+        SET categories = ${updatedCats}, "updatedAt" = NOW()
+        WHERE id = ${b.id};
+      `;
+    }
+
+    // Clean up category from StoreSetting (size scales and attributes)
+    const settings = (await sql`
+      SELECT key, value FROM "StoreSetting"
+      WHERE key IN ('category_size_scales', 'category_attributes');
+    `) as { key: string; value: Record<string, unknown> }[];
+
+    for (const s of settings) {
+      if (s.value && typeof s.value === "object" && catName in s.value) {
+        const updated = { ...s.value };
+        delete updated[catName];
+        await sql`
+          UPDATE "StoreSetting"
+          SET value = ${JSON.stringify(updated)}::jsonb, "updatedAt" = NOW()
+          WHERE key = ${s.key};
+        `;
+      }
+    }
+
+    return NextResponse.json({ success: true, deletedCategory: catName });
   } catch (error) {
     console.error("Failed to delete category:", error);
     return NextResponse.json(

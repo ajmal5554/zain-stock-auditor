@@ -12,28 +12,30 @@ export async function GET() {
       WHERE key IN ('category_size_scales', 'category_attributes');
     `) as { key: string; value: unknown }[];
 
-    let sizeScales = DEFAULT_CATEGORY_SIZE_SCALES;
-    let attributes = DEFAULT_CATEGORY_ATTRIBUTES;
+    let sizeScales: Record<string, unknown> | null = null;
+    let attributes: Record<string, unknown> | null = null;
 
     for (const r of rows) {
-      if (r.key === "category_size_scales" && r.value) {
-        sizeScales = r.value as typeof DEFAULT_CATEGORY_SIZE_SCALES;
+      if (r.key === "category_size_scales" && r.value !== undefined && r.value !== null) {
+        sizeScales = r.value as Record<string, unknown>;
       }
-      if (r.key === "category_attributes" && r.value) {
-        attributes = r.value as typeof DEFAULT_CATEGORY_ATTRIBUTES;
+      if (r.key === "category_attributes" && r.value !== undefined && r.value !== null) {
+        attributes = r.value as Record<string, unknown>;
       }
     }
 
+    // Return whatever is in database (even if empty); only fallback if setting never initialized
     return NextResponse.json({
-      sizeScales,
-      attributes,
+      sizeScales: sizeScales ?? {},
+      attributes: attributes ?? {},
+      hasSavedSettings: rows.length > 0,
     });
   } catch (error) {
     console.error("Failed to load store settings:", error);
-    // Return defaults if database error occurs
     return NextResponse.json({
-      sizeScales: DEFAULT_CATEGORY_SIZE_SCALES,
-      attributes: DEFAULT_CATEGORY_ATTRIBUTES,
+      sizeScales: {},
+      attributes: {},
+      hasSavedSettings: false,
     });
   }
 }
@@ -41,9 +43,32 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sizeScales, attributes } = body;
+    const { sizeScales, attributes, action } = body;
 
-    if (sizeScales) {
+    if (action === "reset_defaults") {
+      await sql`
+        INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
+        VALUES ('st_scales', 'category_size_scales', ${JSON.stringify(DEFAULT_CATEGORY_SIZE_SCALES)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET value = ${JSON.stringify(DEFAULT_CATEGORY_SIZE_SCALES)}::jsonb, "updatedAt" = NOW();
+      `;
+
+      await sql`
+        INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
+        VALUES ('st_attrs', 'category_attributes', ${JSON.stringify(DEFAULT_CATEGORY_ATTRIBUTES)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET value = ${JSON.stringify(DEFAULT_CATEGORY_ATTRIBUTES)}::jsonb, "updatedAt" = NOW();
+      `;
+
+      return NextResponse.json({
+        success: true,
+        message: "Settings reset to defaults",
+        sizeScales: DEFAULT_CATEGORY_SIZE_SCALES,
+        attributes: DEFAULT_CATEGORY_ATTRIBUTES,
+      });
+    }
+
+    if (sizeScales !== undefined) {
       await sql`
         INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
         VALUES ('st_scales', 'category_size_scales', ${JSON.stringify(sizeScales)}::jsonb, NOW())
@@ -52,7 +77,7 @@ export async function POST(request: Request) {
       `;
     }
 
-    if (attributes) {
+    if (attributes !== undefined) {
       await sql`
         INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
         VALUES ('st_attrs', 'category_attributes', ${JSON.stringify(attributes)}::jsonb, NOW())

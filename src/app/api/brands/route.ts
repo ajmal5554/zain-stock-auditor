@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { POPULAR_RETAIL_BRANDS } from "@/lib/constants";
 
 interface BrandRow {
   id: string;
@@ -51,12 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json(dbBrands);
   } catch (error) {
     console.error("Failed to fetch brands:", error);
-    // Fallback to static list if database connection error
-    const fallback = POPULAR_RETAIL_BRANDS.map((name: string) => ({
-      name,
-      categories: ["*"],
-    }));
-    return NextResponse.json(fallback);
+    return NextResponse.json([]);
   }
 }
 
