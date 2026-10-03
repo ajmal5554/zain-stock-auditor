@@ -44,12 +44,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} font-sans antialiased bg-slate-50 text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
+        className={`${inter.variable} font-sans antialiased bg-[#f8f9fb] text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
       >
         <PwaInstaller />
         <OfflineBanner />
         <DesktopSidebar />
-        <main className="pb-24 md:pb-12 md:pl-64 min-h-screen">{children}</main>
+        <main className="pb-20 md:pb-8 md:pl-60 min-h-screen">
+          {children}
+        </main>
         <BottomNav />
         <Toaster />
       </body>
