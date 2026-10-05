@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -23,6 +23,10 @@ import {
   List,
   ArrowDownToLine,
   ShoppingBag,
+  SlidersHorizontal,
+  Filter,
+  ArrowUpDown,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import {
@@ -82,6 +86,7 @@ interface Product {
   customMeta?: Record<string, string> | null;
   category: Category;
   variants: Variant[];
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -93,6 +98,20 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+
+  // Expanded Filter & Sort States
+  const [sortOption, setSortOption] = useState<
+    "created-desc" | "created-asc" | "updated-desc" | "brand-asc" | "brand-desc" | "mrp-desc" | "mrp-asc" | "qty-desc" | "qty-asc"
+  >("created-desc");
+  const [showFilters, setShowFilters] = useState(false);
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
+  const [fitFilter, setFitFilter] = useState("");
+  const [colorFilter, setColorFilter] = useState("");
+  const [collarFilter, setCollarFilter] = useState("");
+  const [sleeveFilter, setSleeveFilter] = useState("");
+  const [fabricFilter, setFabricFilter] = useState("");
+  const [patternFilter, setPatternFilter] = useState("");
+  const [priceRangeFilter, setPriceRangeFilter] = useState<"all" | "under_500" | "500_1000" | "1000_2000" | "above_2000">("all");
 
   // In-line variant quantity editing
   const [editingVariant, setEditingVariant] = useState<string | null>(null);
@@ -127,11 +146,12 @@ export default function InventoryPage() {
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProducts = useCallback(
-    async (searchTerm: string = "", catId: string = "") => {
+    async (searchTerm: string = "", catId: string = "", sortOpt: string = "created-desc") => {
       try {
         const params = new URLSearchParams();
         if (searchTerm) params.set("search", searchTerm);
         if (catId) params.set("categoryId", catId);
+        if (sortOpt) params.set("sort", sortOpt);
 
         const res = await fetch(`/api/products?${params}`);
         if (!res.ok) throw new Error();
@@ -151,19 +171,160 @@ export default function InventoryPage() {
       .then((r) => r.json())
       .then(setCategories)
       .catch(() => {});
-    fetchProducts();
-  }, [fetchProducts]);
+    fetchProducts("", "", sortOption);
+  }, [fetchProducts, sortOption]);
 
   // Debounced search
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
-      fetchProducts(search, categoryFilter);
+      fetchProducts(search, categoryFilter, sortOption);
     }, 300);
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
     };
-  }, [search, categoryFilter, fetchProducts]);
+  }, [search, categoryFilter, sortOption, fetchProducts]);
+
+  // Calculate count of active secondary filters
+  const activeFilterCount =
+    (stockFilter !== "all" ? 1 : 0) +
+    (fitFilter ? 1 : 0) +
+    (colorFilter ? 1 : 0) +
+    (collarFilter ? 1 : 0) +
+    (sleeveFilter ? 1 : 0) +
+    (fabricFilter ? 1 : 0) +
+    (patternFilter ? 1 : 0) +
+    (priceRangeFilter !== "all" ? 1 : 0);
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setCategoryFilter("");
+    setStockFilter("all");
+    setFitFilter("");
+    setColorFilter("");
+    setCollarFilter("");
+    setSleeveFilter("");
+    setFabricFilter("");
+    setPatternFilter("");
+    setPriceRangeFilter("all");
+    setSortOption("created-desc");
+  };
+
+  // Client-side instant filtering across all structured attributes & stock levels
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const totalQty = p.variants.reduce((s, v) => s + v.quantity, 0);
+
+      // Stock status filter
+      if (stockFilter === "in_stock" && totalQty <= 0) return false;
+      if (stockFilter === "low_stock" && (totalQty <= 0 || totalQty > 5)) return false;
+      if (stockFilter === "out_of_stock" && totalQty > 0) return false;
+
+      // Price range filter
+      if (priceRangeFilter === "under_500" && p.mrp >= 500) return false;
+      if (priceRangeFilter === "500_1000" && (p.mrp < 500 || p.mrp > 1000)) return false;
+      if (priceRangeFilter === "1000_2000" && (p.mrp < 1000 || p.mrp > 2000)) return false;
+      if (priceRangeFilter === "above_2000" && p.mrp <= 2000) return false;
+
+      // Fit filter
+      if (fitFilter) {
+        const itemFit =
+          p.customMeta?.fit ||
+          p.notes?.match(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/i)?.[0];
+        if (itemFit?.toLowerCase() !== fitFilter.toLowerCase()) return false;
+      }
+
+      // Color filter
+      if (colorFilter) {
+        let itemColor = p.customMeta?.color;
+        if (!itemColor && p.notes) {
+          if (/white/i.test(p.notes)) itemColor = "White";
+          else if (/color/i.test(p.notes)) itemColor = "Color";
+        }
+        if (!itemColor) itemColor = "Color";
+        if (itemColor.toLowerCase() !== colorFilter.toLowerCase()) return false;
+      }
+
+      // Collar filter
+      if (collarFilter) {
+        const itemCollar = p.customMeta?.collar;
+        if (!itemCollar || itemCollar.toLowerCase() !== collarFilter.toLowerCase()) return false;
+      }
+
+      // Sleeve filter
+      if (sleeveFilter) {
+        if (!p.sleeve || p.sleeve.toLowerCase() !== sleeveFilter.toLowerCase()) return false;
+      }
+
+      // Fabric filter
+      if (fabricFilter) {
+        if (!p.fabric || p.fabric.toLowerCase() !== fabricFilter.toLowerCase()) return false;
+      }
+
+      // Pattern filter
+      if (patternFilter) {
+        if (!p.pattern || p.pattern.toLowerCase() !== patternFilter.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [
+    products,
+    stockFilter,
+    priceRangeFilter,
+    fitFilter,
+    colorFilter,
+    collarFilter,
+    sleeveFilter,
+    fabricFilter,
+    patternFilter,
+  ]);
+
+  // Client-side sorting for responsive reordering without latency
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts];
+    list.sort((a, b) => {
+      if (sortOption === "created-desc") {
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bDate - aDate;
+      }
+      if (sortOption === "created-asc") {
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aDate - bDate;
+      }
+      if (sortOption === "updated-desc") {
+        const aDate = new Date(a.updatedAt).getTime();
+        const bDate = new Date(b.updatedAt).getTime();
+        return bDate - aDate;
+      }
+      if (sortOption === "brand-asc") {
+        return a.brand.localeCompare(b.brand);
+      }
+      if (sortOption === "brand-desc") {
+        return b.brand.localeCompare(a.brand);
+      }
+      if (sortOption === "mrp-desc") {
+        return b.mrp - a.mrp;
+      }
+      if (sortOption === "mrp-asc") {
+        return a.mrp - b.mrp;
+      }
+      if (sortOption === "qty-desc") {
+        const aQty = a.variants.reduce((s, v) => s + v.quantity, 0);
+        const bQty = b.variants.reduce((s, v) => s + v.quantity, 0);
+        return bQty - aQty;
+      }
+      if (sortOption === "qty-asc") {
+        const aQty = a.variants.reduce((s, v) => s + v.quantity, 0);
+        const bQty = b.variants.reduce((s, v) => s + v.quantity, 0);
+        return aQty - bQty;
+      }
+      return 0;
+    });
+    return list;
+  }, [filteredProducts, sortOption]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -381,13 +542,25 @@ export default function InventoryPage() {
     }
   };
 
-  // KPIs
+  // KPIs (Total across store)
   const totalPcs = products.reduce(
     (sum, p) => sum + p.variants.reduce((vs, v) => vs + v.quantity, 0),
     0
   );
   const uniqueStyles = products.length;
   const totalValue = products.reduce(
+    (sum, p) =>
+      sum + p.variants.reduce((vs, v) => vs + v.quantity * p.mrp, 0),
+    0
+  );
+
+  // Filtered KPIs (matching active filters)
+  const filteredPcs = sortedProducts.reduce(
+    (sum, p) => sum + p.variants.reduce((vs, v) => vs + v.quantity, 0),
+    0
+  );
+  const filteredStyles = sortedProducts.length;
+  const filteredValue = sortedProducts.reduce(
     (sum, p) =>
       sum + p.variants.reduce((vs, v) => vs + v.quantity * p.mrp, 0),
     0
@@ -697,10 +870,12 @@ export default function InventoryPage() {
           </div>
           <div>
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {totalPcs.toLocaleString("en-IN")}
+              {filteredPcs.toLocaleString("en-IN")}
             </div>
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-              Total Pcs in Store
+              {activeFilterCount > 0 || search || categoryFilter
+                ? `Filtered Pcs (${totalPcs} total)`
+                : "Total Pcs in Store"}
             </div>
           </div>
         </Card>
@@ -711,10 +886,12 @@ export default function InventoryPage() {
           </div>
           <div>
             <div className="text-xl font-black text-emerald-700 tracking-tight truncate">
-              {formatINR(totalValue)}
+              {formatINR(filteredValue)}
             </div>
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-              Total Valuation (MRP)
+              {activeFilterCount > 0 || search || categoryFilter
+                ? `Filtered Val (${formatINR(totalValue)})`
+                : "Total Valuation (MRP)"}
             </div>
           </div>
         </Card>
@@ -725,10 +902,12 @@ export default function InventoryPage() {
           </div>
           <div>
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {uniqueStyles}
+              {filteredStyles}
             </div>
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-              Garment Styles / SKUs
+              {activeFilterCount > 0 || search || categoryFilter
+                ? `Styles Shown (${uniqueStyles} total)`
+                : "Garment Styles / SKUs"}
             </div>
           </div>
         </Card>
@@ -749,70 +928,422 @@ export default function InventoryPage() {
       </div>
 
       {/* ── Search & Filter Controls with View Mode Switcher ── */}
-      <div className="flex flex-col sm:flex-row gap-2.5 mb-5 items-stretch sm:items-center justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="flex-1 relative">
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search brand, category, style, notes..."
-              className="pl-10 text-xs h-10 bg-white"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
+      <div className="space-y-3 mb-5">
+        <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
+          <div className="flex flex-1 flex-wrap sm:flex-nowrap items-center gap-2">
+            {/* Search Input */}
+            <div className="flex-1 min-w-[200px] relative">
+              <Search
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search brand, category, style, notes..."
+                className="pl-10 text-xs h-10 bg-white"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Category Dropdown */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Sort Options Dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as any)}
+                className="h-10 pl-8 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 appearance-none cursor-pointer"
+                title="Sort inventory by"
               >
-                <X size={14} />
-              </button>
-            )}
+                <option value="created-desc">🕒 Latest Added (Newest First)</option>
+                <option value="created-asc">🕒 Oldest Added First</option>
+                <option value="updated-desc">🔄 Recently Scanned / Updated</option>
+                <option value="brand-asc">🔤 Brand: A to Z</option>
+                <option value="brand-desc">🔤 Brand: Z to A</option>
+                <option value="mrp-desc">💰 Price: High to Low</option>
+                <option value="mrp-asc">💰 Price: Low to High</option>
+                <option value="qty-desc">📦 Total Pcs: High to Low</option>
+                <option value="qty-asc">📦 Total Pcs: Low to High</option>
+              </select>
+              <ArrowUpDown
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+              />
+            </div>
+
+            {/* Advanced Filters Toggle Button */}
+            <Button
+              type="button"
+              variant={showFilters || activeFilterCount > 0 ? "secondary" : "outline"}
+              onClick={() => setShowFilters(!showFilters)}
+              className={`h-10 gap-1.5 text-xs font-bold shrink-0 ${
+                activeFilterCount > 0 ? "border-indigo-300 text-indigo-700 bg-indigo-50/70" : ""
+              }`}
+            >
+              <SlidersHorizontal size={14} />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-black">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
           </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {/* Desktop View Switcher */}
+          <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "table"
+                  ? "bg-white text-indigo-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <List size={14} />
+              <span>Table View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "cards"
+                  ? "bg-white text-indigo-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid size={14} />
+              <span>Cards View</span>
+            </button>
+          </div>
         </div>
 
-        {/* Desktop View Switcher */}
-        <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-          <button
-            type="button"
-            onClick={() => setViewMode("table")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              viewMode === "table"
-                ? "bg-white text-indigo-700 shadow-xs font-bold"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <List size={14} />
-            <span>Table View</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("cards")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              viewMode === "cards"
-                ? "bg-white text-indigo-700 shadow-xs font-bold"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <LayoutGrid size={14} />
-            <span>Cards View</span>
-          </button>
-        </div>
+        {/* ── Expandable Filter Drawer Panel ── */}
+        {showFilters && (
+          <Card className="p-4 bg-slate-50/90 border-slate-200 shadow-xs animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Filter size={15} className="text-indigo-600" />
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Filter by Attributes & Stock Status
+                </span>
+                {activeFilterCount > 0 && (
+                  <Badge variant="subtle" className="text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                    {activeFilterCount} Active
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-rose-50"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Reset All</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Stock Status */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Stock Level
+                </label>
+                <select
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value as any)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="all">All Stock Levels</option>
+                  <option value="in_stock">In Stock (&gt; 0 pcs)</option>
+                  <option value="low_stock">Low Stock (1–5 pcs)</option>
+                  <option value="out_of_stock">Out of Stock (0 pcs)</option>
+                </select>
+              </div>
+
+              {/* Fit Style */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Fit Style
+                </label>
+                <select
+                  value={fitFilter}
+                  onChange={(e) => setFitFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Fits</option>
+                  {FITS.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                  <option value="Relaxed Fit">Relaxed Fit</option>
+                  <option value="Oversized">Oversized</option>
+                  <option value="Classic Fit">Classic Fit</option>
+                </select>
+              </div>
+
+              {/* Color / Shade */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Color / Shade
+                </label>
+                <select
+                  value={colorFilter}
+                  onChange={(e) => setColorFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Colors</option>
+                  {POPULAR_COLORS.map((c) => (
+                    <option key={c} value={c}>{c === "Color" ? "Color (Colored Garments)" : c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Collar / Neck Style */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Collar / Neck
+                </label>
+                <select
+                  value={collarFilter}
+                  onChange={(e) => setCollarFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Collars</option>
+                  <option value="Regular Collar">Regular Collar</option>
+                  <option value="Mandarin / Chinese Collar">Mandarin / Chinese</option>
+                  <option value="Button-Down">Button-Down</option>
+                  <option value="Cutaway Collar">Cutaway Collar</option>
+                  <option value="Cuban Collar">Cuban Collar</option>
+                  <option value="Polo / Collar">Polo / Collar</option>
+                  <option value="Round Neck">Round Neck</option>
+                  <option value="V-Neck">V-Neck</option>
+                </select>
+              </div>
+
+              {/* Sleeve */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Sleeve
+                </label>
+                <select
+                  value={sleeveFilter}
+                  onChange={(e) => setSleeveFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Sleeves</option>
+                  {SLEEVES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Fabric */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Fabric
+                </label>
+                <select
+                  value={fabricFilter}
+                  onChange={(e) => setFabricFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Fabrics</option>
+                  {FABRICS.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pattern */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Pattern
+                </label>
+                <select
+                  value={patternFilter}
+                  onChange={(e) => setPatternFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Patterns</option>
+                  {PATTERNS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Price Range */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Retail MRP
+                </label>
+                <select
+                  value={priceRangeFilter}
+                  onChange={(e) => setPriceRangeFilter(e.target.value as any)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="all">All Prices</option>
+                  <option value="under_500">Under ₹500</option>
+                  <option value="500_1000">₹500 – ₹1,000</option>
+                  <option value="1000_2000">₹1,000 – ₹2,000</option>
+                  <option value="above_2000">Above ₹2,000</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Active Filter Chips Bar ── */}
+        {(activeFilterCount > 0 || search || categoryFilter) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+            <span className="text-slate-500 font-medium mr-1 flex items-center gap-1">
+              <Filter size={12} className="text-indigo-600" />
+              <span>Active filters:</span>
+            </span>
+            {search && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setSearch("")}
+              >
+                <span>Search: &quot;{search}&quot;</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {categoryFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setCategoryFilter("")}
+              >
+                <span>Category: {categories.find((c) => c.id === categoryFilter)?.name}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {stockFilter !== "all" && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setStockFilter("all")}
+              >
+                <span>Stock: {stockFilter.replace("_", " ")}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {fitFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setFitFilter("")}
+              >
+                <span>Fit: {fitFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {colorFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setColorFilter("")}
+              >
+                <span>Color: {colorFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {collarFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setCollarFilter("")}
+              >
+                <span>Collar: {collarFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {sleeveFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setSleeveFilter("")}
+              >
+                <span>Sleeve: {sleeveFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {fabricFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setFabricFilter("")}
+              >
+                <span>Fabric: {fabricFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {patternFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setPatternFilter("")}
+              >
+                <span>Pattern: {patternFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {priceRangeFilter !== "all" && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setPriceRangeFilter("all")}
+              >
+                <span>Price: {priceRangeFilter.replace("_", " ")}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            <button
+              type="button"
+              onClick={resetAllFilters}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold ml-1 underline cursor-pointer"
+            >
+              Clear all
+            </button>
+            <span className="text-slate-400 text-xs ml-auto">
+              Showing {sortedProducts.length} of {products.length} styles ({filteredPcs} pcs)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Products List ── */}
@@ -843,11 +1374,27 @@ export default function InventoryPage() {
             </Button>
           </Link>
         </Card>
+      ) : sortedProducts.length === 0 ? (
+        <Card className="text-center py-16 px-6 bg-white border-slate-200">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-4 border border-indigo-100">
+            <Filter size={28} />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">
+            No garments match current filters
+          </h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5">
+            None of your {products.length} styles match the selected attributes or stock levels.
+          </p>
+          <Button size="sm" onClick={resetAllFilters} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+            <RotateCcw size={14} />
+            <span>Reset All Filters</span>
+          </Button>
+        </Card>
       ) : (
         <>
           {/* Mobile Product Cards (always visible on phone) */}
           <div className="space-y-3 md:hidden">
-            {products.map((product) => renderProductCard(product))}
+            {sortedProducts.map((product) => renderProductCard(product))}
           </div>
 
           {/* Desktop Product Views */}
@@ -869,7 +1416,7 @@ export default function InventoryPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {products.map((product) => {
+                      {sortedProducts.map((product) => {
                         const totalQty = product.variants.reduce((s, v) => s + v.quantity, 0);
                         const valuation = totalQty * product.mrp;
                         return (
@@ -1010,7 +1557,7 @@ export default function InventoryPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => renderProductCard(product))}
+                {sortedProducts.map((product) => renderProductCard(product))}
               </div>
             )}
           </div>

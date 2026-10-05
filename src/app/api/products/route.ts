@@ -31,6 +31,23 @@ export async function GET(request: Request) {
       ];
     }
 
+    const sort = searchParams.get("sort") || "created-desc";
+    let orderBy: Record<string, "asc" | "desc"> = { createdAt: "desc" };
+
+    if (sort === "updated-desc") {
+      orderBy = { updatedAt: "desc" };
+    } else if (sort === "brand-asc") {
+      orderBy = { brand: "asc" };
+    } else if (sort === "brand-desc") {
+      orderBy = { brand: "desc" };
+    } else if (sort === "mrp-asc") {
+      orderBy = { mrp: "asc" };
+    } else if (sort === "mrp-desc") {
+      orderBy = { mrp: "desc" };
+    } else {
+      orderBy = { createdAt: "desc" };
+    }
+
     const products = await prisma.product.findMany({
       where,
       include: {
@@ -39,7 +56,7 @@ export async function GET(request: Request) {
           orderBy: { size: "asc" },
         },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy,
     });
 
     return NextResponse.json(products);
