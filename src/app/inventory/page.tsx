@@ -25,7 +25,18 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
-import { formatINR, PATTERNS, FABRICS, SLEEVES, FITS, POPULAR_COLORS } from "@/lib/constants";
+import {
+  formatINR,
+  PATTERNS,
+  FABRICS,
+  SLEEVES,
+  FITS,
+  POPULAR_COLORS,
+  MUNDU_BORDERS,
+  isInnerwearCategory,
+  isMunduCategory,
+} from "@/lib/constants";
+import { resolveCategoryAttributes } from "@/lib/store-defaults";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -96,10 +107,18 @@ export default function InventoryPage() {
   const [editFormPattern, setEditFormPattern] = useState<string | null>(null);
   const [editFormFabric, setEditFormFabric] = useState<string | null>(null);
   const [editFormSleeve, setEditFormSleeve] = useState<string | null>(null);
+  const [editFormCollar, setEditFormCollar] = useState<string | null>(null);
+  const [editFormSubtype, setEditFormSubtype] = useState<string | null>(null);
+  const [editFormBorder, setEditFormBorder] = useState<string | null>(null);
   const [editFormFit, setEditFormFit] = useState<string | null>(null);
   const [editFormColor, setEditFormColor] = useState<string | null>(null);
   const [editFormNotes, setEditFormNotes] = useState("");
   const [savingProductEdit, setSavingProductEdit] = useState(false);
+
+  // Active category & attributes for the style being edited
+  const selectedEditCategory = categories.find((c) => c.id === editFormCategoryId);
+  const selectedEditCatName = selectedEditCategory?.name || "";
+  const editCatAttrs = resolveCategoryAttributes(selectedEditCatName, {});
 
   // Delete Product Confirmation State
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -265,6 +284,9 @@ export default function InventoryPage() {
     setEditFormPattern(product.pattern);
     setEditFormFabric(product.fabric);
     setEditFormSleeve(product.sleeve);
+    setEditFormCollar(product.customMeta?.collar || null);
+    setEditFormSubtype(product.customMeta?.subtype || null);
+    setEditFormBorder(product.customMeta?.border || null);
 
     // Extract Fit: from customMeta.fit or regex match from notes
     const extractedFit =
@@ -313,6 +335,9 @@ export default function InventoryPage() {
           pattern: editFormPattern,
           fabric: editFormFabric,
           sleeve: editFormSleeve,
+          collar: editFormCollar,
+          subtype: editFormSubtype,
+          border: editFormBorder,
           fit: editFormFit,
           color: editFormColor,
           userNote: editFormNotes.trim(),
@@ -1102,6 +1127,126 @@ export default function InventoryPage() {
                 </select>
               </div>
             </div>
+
+            {/* Category-Specific Attributes: Collar / Subtype / Border */}
+            {!isInnerwearCategory(selectedEditCatName) && !isMunduCategory(selectedEditCatName) && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Collar / Neck Style</span>
+                  {editFormCollar && (
+                    <span className="text-[10px] text-blue-700 font-semibold lowercase">
+                      ({editFormCollar})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormCollar || ""}
+                  onChange={(e) => setEditFormCollar(e.target.value || null)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  <option value="">None / Not Specified</option>
+                  {(editCatAttrs.collars || [
+                    "Regular Collar",
+                    "Mandarin / Chinese Collar",
+                    "Button-Down",
+                    "Cutaway Collar",
+                    "Cuban Collar",
+                    "Polo / Collar",
+                    "Round Neck",
+                    "V-Neck",
+                  ]).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                  {editFormCollar &&
+                    !(editCatAttrs.collars || [
+                      "Regular Collar",
+                      "Mandarin / Chinese Collar",
+                      "Button-Down",
+                      "Cutaway Collar",
+                      "Cuban Collar",
+                      "Polo / Collar",
+                      "Round Neck",
+                      "V-Neck",
+                    ]).includes(editFormCollar) && (
+                      <option value={editFormCollar}>{editFormCollar}</option>
+                    )}
+                </select>
+              </div>
+            )}
+
+            {(isInnerwearCategory(selectedEditCatName) || editFormSubtype || (editCatAttrs.subtypes && editCatAttrs.subtypes.length > 0)) && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Garment Subtype</span>
+                  {editFormSubtype && (
+                    <span className="text-[10px] text-indigo-700 font-semibold lowercase">
+                      ({editFormSubtype})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormSubtype || ""}
+                  onChange={(e) => setEditFormSubtype(e.target.value || null)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  <option value="">None / Not Specified</option>
+                  {(editCatAttrs.subtypes || [
+                    "Brief",
+                    "Trunk",
+                    "Boxer Brief",
+                    "Vest (Sleeveless)",
+                    "Gym Vest",
+                    "Drawer",
+                  ]).map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  {editFormSubtype &&
+                    !(editCatAttrs.subtypes || [
+                      "Brief",
+                      "Trunk",
+                      "Boxer Brief",
+                      "Vest (Sleeveless)",
+                      "Gym Vest",
+                      "Drawer",
+                    ]).includes(editFormSubtype) && (
+                      <option value={editFormSubtype}>{editFormSubtype}</option>
+                    )}
+                </select>
+              </div>
+            )}
+
+            {(isMunduCategory(selectedEditCatName) || editFormBorder || (editCatAttrs.borders && editCatAttrs.borders.length > 0)) && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Border / Kasavu</span>
+                  {editFormBorder && (
+                    <span className="text-[10px] text-amber-700 font-semibold lowercase">
+                      ({editFormBorder})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormBorder || ""}
+                  onChange={(e) => setEditFormBorder(e.target.value || null)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  <option value="">None / Not Specified</option>
+                  {(editCatAttrs.borders || MUNDU_BORDERS).map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                  {editFormBorder &&
+                    !(editCatAttrs.borders || MUNDU_BORDERS).includes(editFormBorder) && (
+                      <option value={editFormBorder}>{editFormBorder}</option>
+                    )}
+                </select>
+              </div>
+            )}
 
             {/* Dedicated Fit Style and Color Selectors */}
             <div className="grid grid-cols-2 gap-3">

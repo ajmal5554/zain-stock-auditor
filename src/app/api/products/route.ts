@@ -110,6 +110,30 @@ export async function POST(request: Request) {
             customMeta: Object.keys(customMetaObj).length > 0 ? customMetaObj : undefined,
           },
         });
+      } else {
+        // If product already existed, auto-enrich any attribute that was previously missing (e.g. collar, subtype, border)
+        const existingMeta = (productRecord.customMeta as Record<string, string>) || {};
+        let needsUpdate = false;
+        const mergedMeta: Record<string, string> = { ...existingMeta };
+
+        if (!existingMeta.collar && customMetaObj.collar) {
+          mergedMeta.collar = customMetaObj.collar;
+          needsUpdate = true;
+        }
+        if (!existingMeta.subtype && customMetaObj.subtype) {
+          mergedMeta.subtype = customMetaObj.subtype;
+          needsUpdate = true;
+        }
+        if (!existingMeta.border && customMetaObj.border) {
+          mergedMeta.border = customMetaObj.border;
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          productRecord = await tx.product.update({
+            where: { id: productRecord.id },
+            data: { customMeta: mergedMeta },
+          });
+        }
       }
 
       // Auto-link brand to this category so it appears under suggestions for this category
@@ -201,7 +225,22 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, brand, mrp, categoryId, pattern, fabric, sleeve, fit, color, userNote, notes } = body;
+    const {
+      id,
+      brand,
+      mrp,
+      categoryId,
+      pattern,
+      fabric,
+      sleeve,
+      fit,
+      color,
+      collar,
+      subtype,
+      border,
+      userNote,
+      notes,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
@@ -227,6 +266,18 @@ export async function PATCH(request: Request) {
       if (color) newMeta.color = color;
       else delete newMeta.color;
     }
+    if (collar !== undefined) {
+      if (collar) newMeta.collar = collar;
+      else delete newMeta.collar;
+    }
+    if (subtype !== undefined) {
+      if (subtype) newMeta.subtype = subtype;
+      else delete newMeta.subtype;
+    }
+    if (border !== undefined) {
+      if (border) newMeta.border = border;
+      else delete newMeta.border;
+    }
 
     const data: Record<string, unknown> = {};
     if (brand !== undefined) data.brand = brand.trim() || "Unbranded";
@@ -237,7 +288,14 @@ export async function PATCH(request: Request) {
     if (sleeve !== undefined) data.sleeve = sleeve;
 
     // Recalculate notes if fit, color, or userNote was sent
-    if (fit !== undefined || color !== undefined || userNote !== undefined) {
+    if (
+      fit !== undefined ||
+      color !== undefined ||
+      userNote !== undefined ||
+      collar !== undefined ||
+      subtype !== undefined ||
+      border !== undefined
+    ) {
       const extraTags: string[] = [];
       if (newMeta.fit) extraTags.push(newMeta.fit);
       if (newMeta.color) extraTags.push(newMeta.color);
