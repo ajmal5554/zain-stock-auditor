@@ -29,6 +29,9 @@ import {
   shouldShowSleeve,
   isMunduCategory,
   isInnerwearCategory,
+  isShirtCategory,
+  DEFAULT_POCKETS,
+  getCategoryMrpPresets,
 } from "@/lib/constants";
 import { resolveCategoryAttributes } from "@/lib/store-defaults";
 import { enqueueOffline, setupOfflineSync } from "@/lib/offline-queue";
@@ -75,6 +78,17 @@ export default function AuditPage() {
   const [brands, setBrands] = useState<string[]>([]);
   const [filteredBrands, setFilteredBrands] = useState<string[]>([]);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
+  const [showMrpDropdown, setShowMrpDropdown] = useState(false);
+  const [storeProducts, setStoreProducts] = useState<
+    {
+      id: string;
+      categoryId: string;
+      brand: string;
+      mrp: number;
+      category?: { id: string; name: string };
+      variants?: { id?: string; size: string; quantity: number }[];
+    }[]
+  >([]);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [creatingCategory, setCreatingCategory] = useState(false);
@@ -101,6 +115,8 @@ export default function AuditPage() {
         fabrics?: string[];
         patterns?: string[];
         borders?: string[];
+        pockets?: string[];
+        customAttributes?: Record<string, string[]>;
       }
     >
   >({});
@@ -110,13 +126,14 @@ export default function AuditPage() {
   const [selectedSubtype, setSelectedSubtype] = useState<string | null>(null);
   const [selectedCollar, setSelectedCollar] = useState<string | null>(null);
   const [selectedBorder, setSelectedBorder] = useState<string | null>(null);
+  const [selectedPocket, setSelectedPocket] = useState<string | null>(null);
+  const [selectedCustomMeta, setSelectedCustomMeta] = useState<Record<string, string>>({});
   const [customColors, setCustomColors] = useState<string[]>([]);
 
   // Add Attribute Modal State
   const [isAddAttrDialogOpen, setIsAddAttrDialogOpen] = useState(false);
-  const [modalAttrType, setModalAttrType] = useState<
-    "fabrics" | "collars" | "sleeves" | "fits" | "patterns" | "subtypes" | "borders"
-  >("fabrics");
+  const [modalAttrType, setModalAttrType] = useState<string>("pockets");
+  const [modalCustomTypeName, setModalCustomTypeName] = useState("");
   const [modalAttrVal, setModalAttrVal] = useState("");
   const [modalSaving, setModalSaving] = useState(false);
 
@@ -230,6 +247,146 @@ export default function AuditPage() {
       .catch(() => {});
   }, [selectedCategoryName]);
 
+  // Fetch store products to gather real-time MRP suggestions
+  useEffect(() => {
+    fetch("/api/products", {
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setStoreProducts(data);
+        }
+      })
+      .catch(() => {});
+  }, [saveCount]);
+
+  // Analyze current stock MRPs and rank by MOST USED (highest frequency & piece count in current stock)
+  const mrpSuggestions = useMemo(() => {
+    // 1. Group current stock products by MRP for the selected category
+    const catStockMap = new Map<number, { mrp: number; items: number; pieces: number }>();
+    const allStockMap = new Map<number, { mrp: number; items: number; pieces: number }>();
+
+    for (const p of storeProducts) {
+      if (!p.mrp || p.mrp <= 0) continue;
+      const price = p.mrp;
+      const pieces = (p.variants || []).reduce((sum, v) => sum + (v.quantity || 0), 0);
+
+      const catObj = categories.find((c) => c.id === p.categoryId);
+      const isSelectedCat = Boolean(
+        selectedCategoryName &&
+        ((p.category?.name && p.category.name.toLowerCase() === selectedCategoryName.toLowerCase()) ||
+         (catObj?.name && catObj.name.toLowerCase() === selectedCategoryName.toLowerCase()))
+      );
+
+      if (isSelectedCat) {
+        const existing = catStockMap.get(price) || { mrp: price, items: 0, pieces: 0 };
+        existing.items += 1;
+        existing.pieces += pieces;
+        catStockMap.set(price, existing);
+      }
+
+      const existingAll = allStockMap.get(price) || { mrp: price, items: 0, pieces: 0 };
+      existingAll.items += 1;
+      existingAll.pieces += pieces;
+      allStockMap.set(price, existingAll);
+    }
+
+    // Include recent audits from current session so live newly added audits update the stats instantly!
+    for (const audit of recentAudits) {
+      if (!audit.mrp || audit.mrp <= 0) continue;
+      const price = audit.mrp;
+      const isSelectedCat = Boolean(
+        selectedCategoryName &&
+        audit.category.toLowerCase() === selectedCategoryName.toLowerCase()
+      );
+      if (isSelectedCat) {
+        const existing = catStockMap.get(price) || { mrp: price, items: 0, pieces: 0 };
+        existing.items += 1;
+        existing.pieces += audit.pieces || 0;
+        catStockMap.set(price, existing);
+      }
+      const existingAll = allStockMap.get(price) || { mrp: price, items: 0, pieces: 0 };
+      existingAll.items += 1;
+      existingAll.pieces += audit.pieces || 0;
+      allStockMap.set(price, existingAll);
+    }
+
+    // Sort category stock MRPs by MOST USED (highest product count first, then highest pieces count)
+    const catStockList = Array.from(catStockMap.values()).sort((a, b) => {
+      if (b.items !== a.items) return b.items - a.items;
+      return b.pieces - a.pieces;
+    });
+
+    // If category has stock items, these are our primary suggestions!
+    if (catStockList.length > 0) {
+      const maxItems = catStockList[0].items;
+
+      return catStockList.map((item, index) => ({
+        mrp: item.mrp,
+        items: item.items,
+        pieces: item.pieces,
+        inCategory: true,
+        isStorePrice: true,
+        rank: index + 1,
+        isTopUsed: item.items === maxItems,
+      }));
+    }
+
+    // If category has no stock items yet, use most used MRPs across all current stock in the shop!
+    const allStockList = Array.from(allStockMap.values()).sort((a, b) => {
+      if (b.items !== a.items) return b.items - a.items;
+      return b.pieces - a.pieces;
+    });
+
+    if (allStockList.length > 0) {
+      const maxItems = allStockList[0].items;
+      return allStockList.map((item, index) => ({
+        mrp: item.mrp,
+        items: item.items,
+        pieces: item.pieces,
+        inCategory: false,
+        isStorePrice: true,
+        rank: index + 1,
+        isTopUsed: item.items === maxItems,
+      }));
+    }
+
+    // Fallback only if store is completely empty (0 stock in database)
+    const benchmarks = getCategoryMrpPresets(selectedCategoryName);
+    return benchmarks.map((price) => ({
+      mrp: price,
+      items: 0,
+      pieces: 0,
+      inCategory: false,
+      isStorePrice: false,
+      rank: 999,
+      isTopUsed: false,
+    }));
+  }, [storeProducts, selectedCategoryName, categories, recentAudits]);
+
+  // Filtered MRP suggestions for typing / live search (preserves most-used order!)
+  const filteredMrpSuggestions = useMemo(() => {
+    if (!watchedMrp || watchedMrp === 0) {
+      return mrpSuggestions;
+    }
+    const searchStr = String(watchedMrp);
+    return mrpSuggestions.filter((item) => String(item.mrp).includes(searchStr));
+  }, [watchedMrp, mrpSuggestions]);
+
+  // Quick Pick chips: Show the most used stock MRPs in descending order of usage!
+  const quickMrpChips = useMemo(() => {
+    return mrpSuggestions.slice(0, 8);
+  }, [mrpSuggestions]);
+
+  const handleSelectMrp = useCallback(
+    (price: number) => {
+      setValue("mrp", price, { shouldValidate: true, shouldDirty: true });
+      setShowMrpDropdown(false);
+    },
+    [setValue]
+  );
+
   // Save new brand into persistent suggestions and link to category
   const rememberBrand = useCallback(
     (brandName: string) => {
@@ -330,6 +487,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         setSelectedSubtype(null);
         setSelectedCollar(null);
         setSelectedBorder(null);
+        setSelectedPocket(null);
+        setSelectedCustomMeta({});
         if (!shouldShowSleeve(cat.name)) {
           setValue("sleeve", null);
         }
@@ -428,6 +587,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       else if (k === "collars" || k === "collar") setSelectedCollar(val);
       else if (k === "subtypes" || k === "subtype") setSelectedSubtype(val);
       else if (k === "borders" || k === "border") setSelectedBorder(val);
+      else if (k === "pockets" || k === "pocket") setSelectedPocket(val);
       else if (k === "color") setValue("color", val);
     },
     [setValue]
@@ -436,7 +596,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   // Add an attribute value directly from Audit page and persist to database
   const handleAddAttributeValue = useCallback(
     async (
-      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders",
+      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders" | "pockets",
       val: string
     ) => {
       const trimmed = val.trim();
@@ -482,7 +642,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   // Remove an attribute option from the category
   const handleRemoveAttributeTag = useCallback(
     async (
-      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders",
+      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders" | "pockets",
       tagToRemove: string
     ) => {
       if (!selectedCategoryName) return;
@@ -528,16 +688,116 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     [setValue]
   );
 
+  // Add option to custom attribute group
+  const handleAddCustomAttributeOption = useCallback(
+    async (groupName: string, val: string) => {
+      const trimmed = val.trim();
+      if (!trimmed || !selectedCategoryName) return;
+
+      const existingCatAttrs = currentCategoryAttrs;
+      const existingCustom = existingCatAttrs.customAttributes || {};
+      const existingList = existingCustom[groupName] || [];
+      if (existingList.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+        toast(`"${trimmed}" is already an option`, "info");
+        setSelectedCustomMeta((prev) => ({ ...prev, [groupName]: trimmed }));
+        return;
+      }
+
+      const updatedList = [...existingList, trimmed];
+      const updatedCategoryAttrs = {
+        ...existingCatAttrs,
+        customAttributes: {
+          ...existingCustom,
+          [groupName]: updatedList,
+        },
+      };
+
+      const newStoreAttributes = {
+        ...storeAttributes,
+        [selectedCategoryName]: updatedCategoryAttrs,
+      };
+
+      setStoreAttributes(newStoreAttributes);
+      try {
+        localStorage.setItem("zain_category_attributes", JSON.stringify(newStoreAttributes));
+      } catch {}
+
+      setSelectedCustomMeta((prev) => ({ ...prev, [groupName]: trimmed }));
+      toast(`✓ Added "${trimmed}" to ${groupName}`, "success");
+
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: newStoreAttributes }),
+      }).catch(() => {});
+    },
+    [currentCategoryAttrs, selectedCategoryName, storeAttributes]
+  );
+
   // Modal Add Attribute Handler
   const handleModalAddAttribute = async () => {
     if (!modalAttrVal.trim() || !selectedCategoryName) return;
     setModalSaving(true);
     try {
-      await handleAddAttributeValue(modalAttrType, modalAttrVal);
-      setModalAttrVal("");
-      setIsAddAttrDialogOpen(false);
+      if (modalAttrType === "new_custom") {
+        const groupName = modalCustomTypeName.trim();
+        if (!groupName) {
+          toast("Please enter an attribute type name", "error");
+          return;
+        }
+        await handleAddCustomAttributeOption(groupName, modalAttrVal);
+        setModalCustomTypeName("");
+        setModalAttrVal("");
+        setIsAddAttrDialogOpen(false);
+      } else if (modalAttrType.startsWith("custom:")) {
+        const groupName = modalAttrType.replace("custom:", "");
+        await handleAddCustomAttributeOption(groupName, modalAttrVal);
+        setModalAttrVal("");
+        setIsAddAttrDialogOpen(false);
+      } else {
+        await handleAddAttributeValue(modalAttrType as any, modalAttrVal);
+        setModalAttrVal("");
+        setIsAddAttrDialogOpen(false);
+      }
     } finally {
       setModalSaving(false);
+    }
+  };
+
+  // Current modal options based on selected attribute type
+  const currentModalOptions = useMemo(() => {
+    if (modalAttrType === "new_custom") return [];
+    if (modalAttrType.startsWith("custom:")) {
+      const g = modalAttrType.replace("custom:", "");
+      return currentCategoryAttrs.customAttributes?.[g] || [];
+    }
+    return (currentCategoryAttrs as any)[modalAttrType] || [];
+  }, [modalAttrType, currentCategoryAttrs]);
+
+  const handleModalRemoveTag = async (tag: string) => {
+    if (modalAttrType.startsWith("custom:")) {
+      const g = modalAttrType.replace("custom:", "");
+      const existing = currentCategoryAttrs.customAttributes?.[g] || [];
+      const updatedList = existing.filter((t) => t !== tag);
+      const updatedAttrs = {
+        ...currentCategoryAttrs,
+        customAttributes: {
+          ...(currentCategoryAttrs.customAttributes || {}),
+          [g]: updatedList,
+        },
+      };
+      const newStore = { ...storeAttributes, [selectedCategoryName]: updatedAttrs };
+      setStoreAttributes(newStore);
+      try {
+        localStorage.setItem("zain_category_attributes", JSON.stringify(newStore));
+      } catch {}
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: newStore }),
+      }).catch(() => {});
+    } else if (modalAttrType !== "new_custom") {
+      await handleRemoveAttributeTag(modalAttrType as any, tag);
     }
   };
 
@@ -568,6 +828,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     setSelectedSubtype(null);
     setSelectedCollar(null);
     setSelectedBorder(null);
+    setSelectedPocket(null);
+    setSelectedCustomMeta({});
     if (currentCategoryScales.length > 0) {
       const activeScale =
         currentCategoryScales.find((s) => s.id === activeScaleId) || currentCategoryScales[0];
@@ -592,6 +854,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         Boolean(selectedSubtype) ||
         Boolean(selectedCollar) ||
         Boolean(selectedBorder) ||
+        Boolean(selectedPocket) ||
+        Object.keys(selectedCustomMeta).length > 0 ||
         sizes.some((s) => s.quantity > 0);
 
       if (hasAnyValue) {
@@ -610,6 +874,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             selectedSubtype,
             selectedCollar,
             selectedBorder,
+            selectedPocket,
+            selectedCustomMeta,
             sizes,
             activeScaleId,
           };
@@ -629,6 +895,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     selectedSubtype,
     selectedCollar,
     selectedBorder,
+    selectedPocket,
+    selectedCustomMeta,
     sizes,
     activeScaleId,
   ]);
@@ -655,6 +923,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         if (draft.selectedSubtype) setSelectedSubtype(draft.selectedSubtype);
         if (draft.selectedCollar) setSelectedCollar(draft.selectedCollar);
         if (draft.selectedBorder) setSelectedBorder(draft.selectedBorder);
+        if (draft.selectedPocket) setSelectedPocket(draft.selectedPocket);
+        if (draft.selectedCustomMeta) setSelectedCustomMeta(draft.selectedCustomMeta);
         if (Array.isArray(draft.sizes) && draft.sizes.length > 0) {
           setSizes(draft.sizes);
         }
@@ -668,10 +938,13 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   const onSubmit = async (data: AuditEntryInput) => {
     setSubmitting(true);
     try {
-      const customMeta: Record<string, string> = {};
+      const customMeta: Record<string, string> = {
+        ...selectedCustomMeta,
+      };
       if (selectedSubtype) customMeta.subtype = selectedSubtype;
       if (selectedCollar) customMeta.collar = selectedCollar;
       if (selectedBorder) customMeta.border = selectedBorder;
+      if (selectedPocket) customMeta.pocket = selectedPocket;
 
       const payload = {
         ...data,
@@ -746,6 +1019,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         setSelectedSubtype(null);
         setSelectedCollar(null);
         setSelectedBorder(null);
+        setSelectedPocket(null);
+        setSelectedCustomMeta({});
 
         if (currentCategoryScales.length > 0) {
           const activeScale =
@@ -768,10 +1043,13 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       }, 150);
     } catch {
       // Offline fallback: queue to localStorage
-      const customMeta: Record<string, string> = {};
+      const customMeta: Record<string, string> = {
+        ...selectedCustomMeta,
+      };
       if (selectedSubtype) customMeta.subtype = selectedSubtype;
       if (selectedCollar) customMeta.collar = selectedCollar;
       if (selectedBorder) customMeta.border = selectedBorder;
+      if (selectedPocket) customMeta.pocket = selectedPocket;
 
       const payload = {
         ...data,
@@ -870,7 +1148,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     value: string | null;
     onChange: (v: string | null) => void;
     onAdd?: (newVal: string) => void;
-    color?: "indigo" | "amber" | "slate";
+    color?: "indigo" | "amber" | "slate" | "teal";
     badge?: React.ReactNode;
   }) => {
     const [isAdding, setIsAdding] = useState(false);
@@ -889,6 +1167,10 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       },
       slate: {
         active: "bg-slate-800 text-white border-slate-800 shadow-xs",
+        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+      },
+      teal: {
+        active: "bg-teal-600 text-white border-teal-600 shadow-xs",
         inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
       },
     };
@@ -1282,6 +1564,55 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               />
             )}
 
+            {/* Pocket Style */}
+            {(!isMundu && !isInnerwear && ((currentCategoryAttrs.pockets && currentCategoryAttrs.pockets.length > 0) || isShirtCategory(selectedCategoryName))) && (
+              <div className="animate-fade-in">
+                <ChipSelector
+                  label="Pocket Style"
+                  badge={
+                    selectedPocket ? (
+                      <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                        {selectedPocket}
+                      </span>
+                    ) : undefined
+                  }
+                  options={currentCategoryAttrs.pockets || DEFAULT_POCKETS}
+                  value={selectedPocket}
+                  onChange={setSelectedPocket}
+                  onAdd={(val) => handleAddAttributeValue("pockets", val)}
+                  color="teal"
+                />
+              </div>
+            )}
+
+            {/* Dynamic Custom Attributes */}
+            {Object.entries(currentCategoryAttrs.customAttributes || {}).map(([attrName, options]) => (
+              <div key={attrName} className="animate-fade-in">
+                <ChipSelector
+                  label={attrName}
+                  badge={
+                    selectedCustomMeta[attrName] ? (
+                      <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        {selectedCustomMeta[attrName]}
+                      </span>
+                    ) : undefined
+                  }
+                  options={options || []}
+                  value={selectedCustomMeta[attrName] || null}
+                  onChange={(val) =>
+                    setSelectedCustomMeta((prev) => {
+                      const next = { ...prev };
+                      if (val) next[attrName] = val;
+                      else delete next[attrName];
+                      return next;
+                    })
+                  }
+                  onAdd={(val) => handleAddCustomAttributeOption(attrName, val)}
+                  color="indigo"
+                />
+              </div>
+            ))}
+
             {/* Pattern */}
             <ChipSelector
               label="Pattern"
@@ -1370,64 +1701,217 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           {/* MRP + Notes — combined into one compact card */}
           <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                MRP Price (₹)
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-indigo-600 pointer-events-none">₹</span>
-                  <Controller
-                    name="mrp"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        ref={mrpInputRef}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="0"
-                        className="pl-9 text-xl font-bold h-12 text-center tracking-tight"
-                        value={field.value ? String(field.value) : ""}
-                        onFocus={(e) => {
-                          if (e.target.value === "0") {
-                            field.onChange(0);
-                            e.target.select();
-                          }
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-                        }}
-                        onChange={(e) => {
-                          const clean = e.target.value.replace(/[^0-9]/g, "");
-                          field.onChange(clean ? parseInt(clean, 10) : 0);
-                        }}
-                      />
-                    )}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs px-3 font-semibold"
-                  onClick={() => setValue("mrp", Math.max(0, (watchedMrp || 0) + 100))}
-                >
-                  +100
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-xs px-3 font-semibold"
-                  onClick={() => setValue("mrp", Math.max(0, (watchedMrp || 0) + 500))}
-                >
-                  +500
-                </Button>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                  MRP Price (₹)
+                </label>
+                {watchedMrp && watchedMrp > 0 ? (
+                  <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+                    ₹{watchedMrp.toLocaleString("en-IN")}
+                  </span>
+                ) : null}
               </div>
+
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-indigo-600 pointer-events-none">
+                      ₹
+                    </span>
+                    <Controller
+                      name="mrp"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          ref={mrpInputRef}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="Select or enter MRP..."
+                          className="pl-9 pr-8 text-xl font-bold h-12 text-center tracking-tight"
+                          value={field.value ? String(field.value) : ""}
+                          autoComplete="off"
+                          onFocus={(e) => {
+                            setShowMrpDropdown(true);
+                            if (e.target.value === "0") {
+                              field.onChange(0);
+                              e.target.select();
+                            }
+                          }}
+                          onBlur={() => setTimeout(() => setShowMrpDropdown(false), 250)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                            if (e.key === "Escape") setShowMrpDropdown(false);
+                          }}
+                          onChange={(e) => {
+                            const clean = e.target.value.replace(/[^0-9]/g, "");
+                            field.onChange(clean ? parseInt(clean, 10) : 0);
+                            setShowMrpDropdown(true);
+                          }}
+                        />
+                      )}
+                    />
+                    {watchedMrp && watchedMrp > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValue("mrp", 0);
+                          setShowMrpDropdown(true);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-12 text-xs px-3 font-semibold"
+                    onClick={() => setValue("mrp", Math.max(0, (watchedMrp || 0) + 100))}
+                  >
+                    +100
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-12 text-xs px-3 font-semibold"
+                    onClick={() => setValue("mrp", Math.max(0, (watchedMrp || 0) + 500))}
+                  >
+                    +500
+                  </Button>
+                </div>
+
+                {/* Suggestions Dropdown Popover */}
+                {showMrpDropdown && (
+                  <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-64 overflow-y-auto divide-y divide-slate-100">
+                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1 font-bold text-slate-700">
+                        <Sparkles size={11} className="text-amber-500" />
+                        Most Used in Current Stock
+                      </span>
+                      <span>{selectedCategoryName ? `${selectedCategoryName} Stock` : "All Stock"}</span>
+                    </div>
+
+                    {/* If user typed a custom MRP not in suggestions, offer to use it directly */}
+                    {Boolean(watchedMrp && watchedMrp > 0 && !mrpSuggestions.some((s) => s.mrp === watchedMrp)) && (
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-xs font-semibold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 flex items-center justify-between transition-colors"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectMrp(watchedMrp);
+                        }}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Check size={13} />
+                          Use new price: ₹{watchedMrp.toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[10px] text-indigo-500 font-normal">New</span>
+                      </button>
+                    )}
+
+                    {filteredMrpSuggestions.length === 0 ? (
+                      <div className="px-3 py-3 text-center text-xs text-slate-400">
+                        No stock price matching &quot;{watchedMrp}&quot;. You can use this as a new price.
+                      </div>
+                    ) : (
+                      filteredMrpSuggestions.map((item) => {
+                        const isSelected = watchedMrp === item.mrp;
+                        return (
+                          <button
+                            key={item.mrp}
+                            type="button"
+                            className={`w-full px-3 py-2.5 text-left text-xs flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? "bg-indigo-50 text-indigo-900 font-bold"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleSelectMrp(item.mrp);
+                            }}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">
+                                ₹{item.mrp.toLocaleString("en-IN")}
+                              </span>
+                              {isSelected && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                              )}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {item.isTopUsed && item.items > 0 ? (
+                                <Badge variant="success" className="text-[10px] py-0 px-2 font-bold bg-emerald-100 text-emerald-800 border-emerald-200">
+                                  ★ Most Used ({item.items} styles • {item.pieces} pcs)
+                                </Badge>
+                              ) : item.isStorePrice && item.items > 0 ? (
+                                <Badge variant="outline" className="text-[10px] py-0 px-2 font-semibold text-slate-700 bg-slate-50">
+                                  In Stock ({item.items} styles • {item.pieces} pcs)
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Standard</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
               {errors.mrp && (
                 <p className="text-rose-600 text-xs mt-1">{errors.mrp.message}</p>
               )}
+
+              {/* Quick MRP 1-tap chips row (Ranked by most used in stock) */}
+              <div className="pt-1.5">
+                <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 mb-1.5">
+                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                    <Sparkles size={12} className="text-amber-500" />
+                    Most Used in Stock:
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {selectedCategoryName ? `${selectedCategoryName} Stock` : "All Stock"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+                  {quickMrpChips.map((chip) => {
+                    const isSelected = watchedMrp === chip.mrp;
+                    return (
+                      <button
+                        key={chip.mrp}
+                        type="button"
+                        onClick={() => handleSelectMrp(chip.mrp)}
+                        className={`shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                            : "bg-white hover:bg-indigo-50 text-slate-800 hover:text-indigo-700 border-slate-200"
+                        }`}
+                      >
+                        <span>₹{chip.mrp.toLocaleString("en-IN")}</span>
+                        {chip.pieces > 0 && (
+                          <span
+                            className={`text-[10px] font-medium px-1 rounded ${
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : chip.isTopUsed
+                                ? "bg-emerald-100 text-emerald-800 font-bold"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {chip.pieces} pcs
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             <div>
@@ -1686,9 +2170,10 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               </label>
               <select
                 value={modalAttrType}
-                onChange={(e) => setModalAttrType(e.target.value as any)}
+                onChange={(e) => setModalAttrType(e.target.value)}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none shadow-2xs"
               >
+                <option value="pockets">Pocket Style (No Pocket, Single, Double...)</option>
                 <option value="fabrics">Fabric / Material (Cotton, Linen, Rayon...)</option>
                 <option value="collars">Collar / Neck (Mandarin, Polo, Cuban...)</option>
                 <option value="sleeves">Sleeve Style (Full, Half, Sleeveless...)</option>
@@ -1696,8 +2181,28 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                 <option value="patterns">Pattern / Print (Plain, Checks, Striped...)</option>
                 <option value="subtypes">Subtype / Style (Brief, Trunk, Vest, Polo...)</option>
                 <option value="borders">Mundu Border / Zari (Kasavu, Kara, Double...)</option>
+                {Object.keys(currentCategoryAttrs.customAttributes || {}).map((group) => (
+                  <option key={group} value={`custom:${group}`}>
+                    {group} (Custom Attribute)
+                  </option>
+                ))}
+                <option value="new_custom">+ Create New Attribute Type...</option>
               </select>
             </div>
+
+            {modalAttrType === "new_custom" && (
+              <div className="animate-fade-in">
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  New Attribute Type Name
+                </label>
+                <Input
+                  placeholder="e.g. Rise, Closure, Button Type, Occasion..."
+                  value={modalCustomTypeName}
+                  onChange={(e) => setModalCustomTypeName(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-1">
@@ -1734,13 +2239,13 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             {/* List of current options for this type */}
             <div>
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
-                Current {modalAttrType} in {selectedCategoryName}:
+                Current {modalAttrType.startsWith("custom:") ? modalAttrType.replace("custom:", "") : modalAttrType} in {selectedCategoryName}:
               </span>
               <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
-                {(currentCategoryAttrs[modalAttrType] || []).length === 0 ? (
+                {currentModalOptions.length === 0 ? (
                   <span className="text-xs text-slate-400 italic p-1">No options configured yet</span>
                 ) : (
-                  (currentCategoryAttrs[modalAttrType] || []).map((tag: string) => (
+                  currentModalOptions.map((tag: string) => (
                     <span
                       key={tag}
                       className="inline-flex items-center gap-1.5 text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-md text-slate-700 font-medium shadow-2xs"
@@ -1748,7 +2253,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       {tag}
                       <button
                         type="button"
-                        onClick={() => handleRemoveAttributeTag(modalAttrType, tag)}
+                        onClick={() => handleModalRemoveTag(tag)}
                         className="text-slate-400 hover:text-rose-600 transition-colors"
                         title="Remove option"
                       >

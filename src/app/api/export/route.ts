@@ -32,6 +32,10 @@ export async function GET() {
       const collar = meta.collar || "";
       const subtype = meta.subtype || "";
       const border = meta.border || "";
+      const pocket =
+        meta.pocket ||
+        product.notes?.match(/(No Pocket|Single Pocket|Double Pocket)/i)?.[0] ||
+        "";
 
       // Extract real user notes/remarks, excluding the fit • color tags
       let cleanNote = "";
@@ -47,6 +51,16 @@ export async function GET() {
         }
       }
 
+      // Collect any custom attributes (e.g. Rise, Closure, Button Type)
+      const customPairs = Object.entries(meta)
+        .filter(([k]) => !["subtype", "collar", "border", "pocket", "fit", "color"].includes(k) && meta[k])
+        .map(([k, v]) => `${k}: ${v}`);
+
+      if (customPairs.length > 0) {
+        const customStr = customPairs.join(" • ");
+        cleanNote = cleanNote ? `${customStr} | ${cleanNote}` : customStr;
+      }
+
       return product.variants.map((variant) => ({
         ID: variant.id,
         Category: product.category.name,
@@ -55,6 +69,7 @@ export async function GET() {
         Pattern: product.pattern || "",
         Fabric: product.fabric || "",
         Collar: collar,
+        Pocket: pocket,
         Sleeve: product.sleeve || "",
         Fit: fit,
         Color: color,

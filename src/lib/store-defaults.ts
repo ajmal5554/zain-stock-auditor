@@ -296,10 +296,13 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     fabrics?: string[];
     patterns?: string[];
     borders?: string[];
+    pockets?: string[];
+    customAttributes?: Record<string, string[]>;
   }
 > = {
   "Shirts": {
     collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Cutaway Collar", "Cuban Collar"],
+    pockets: ["No Pocket", "Single Pocket", "Double Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
     fits: ["Regular Fit", "Slim Fit", "Tailored Fit"],
     fabrics: ["Cotton", "Linen", "Cotton Blend", "Giza Cotton", "Oxford Cotton", "Lycra"],
@@ -307,6 +310,7 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
   },
   "Formal Shirts": {
     collars: ["Regular Collar", "Cutaway Collar", "Button-Down", "Mandarin / Chinese"],
+    pockets: ["Single Pocket", "No Pocket", "Double Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve"],
     fits: ["Slim Fit", "Regular / Classic Fit", "Tailored Fit"],
     fabrics: ["100% Giza Cotton", "Pure Linen", "Cotton Blend", "Oxford Cotton", "Fil-a-Fil", "Silk Blend"],
@@ -314,6 +318,7 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
   },
   "Casual Shirts": {
     collars: ["Casual Spread", "Button-Down", "Mandarin / Chinese", "Cuban / Camp Collar", "Hooded"],
+    pockets: ["Single Pocket", "Double Pocket", "No Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
     fits: ["Slim Fit", "Relaxed Fit", "Boxy Fit"],
     fabrics: ["Pure Linen", "Washed Cotton", "Denim / Chambray", "Corduroy", "Flannel", "Cotton Lycra"],
@@ -334,11 +339,13 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     patterns: ["Solid / Plain", "Stripes", "Printed", "Graphic"],
   },
   "Trousers & Chinos": {
+    pockets: ["Cross Pocket", "Slash Pocket", "Double Back Pocket", "Single Back Pocket"],
     fits: ["Slim Fit", "Regular Fit", "Relaxed Fit", "Comfort Fit", "Tapered"],
     fabrics: ["Cotton Chino", "Poly-Viscose Formal", "Cotton Lycra Stretch", "Linen Blend", "Corduroy"],
     patterns: ["Solid / Plain", "Cross Pocket", "Formal Pleated", "Checks", "Self-Design"],
   },
   "Trousers/Pants": {
+    pockets: ["Cross Pocket", "Slash Pocket", "Double Back Pocket"],
     fits: ["Slim Fit", "Regular Fit", "Relaxed Fit", "Comfort Fit"],
     fabrics: ["Cotton Chino", "Poly-Viscose Formal", "Denim", "Linen Blend", "Cotton Lycra Stretch"],
     patterns: ["Solid / Plain", "Cross Pocket", "Formal Pleated", "Checks"],
@@ -360,6 +367,7 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
   },
   "Boxers & Loungewear": {
     subtypes: ["Woven Boxer", "Knit Boxer", "Lounge Pant / Pyjama", "Track Pant", "Shorts"],
+    pockets: ["Side Pockets", "Single Pocket", "No Pocket"],
     fabrics: ["100% Cotton", "Modal", "Satin Cotton", "Linen Blend", "Hosiery Cotton"],
     patterns: ["Checks / Tartan", "Fun Prints", "Solid / Plain", "Stripes"],
   },
@@ -373,6 +381,7 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
   },
   "Kurtas & Traditional": {
     collars: ["Mandarin / Chinese", "Round Neck", "Nehru Collar", "Button Collar"],
+    pockets: ["Side Pockets", "Chest Pocket", "No Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
     fabrics: ["100% Pure Cotton", "Pure Linen", "Silk Blend", "Khadi Cotton", "Jacquard Silk"],
     patterns: ["Solid / Plain", "Printed", "Embroidered", "Self-Textured", "Chikankari"],
@@ -410,6 +419,8 @@ export function resolveCategoryAttributes(
       fabrics?: string[];
       patterns?: string[];
       borders?: string[];
+      pockets?: string[];
+      customAttributes?: Record<string, string[]>;
     }
   >
 ): {
@@ -420,6 +431,8 @@ export function resolveCategoryAttributes(
   fabrics?: string[];
   patterns?: string[];
   borders?: string[];
+  pockets?: string[];
+  customAttributes?: Record<string, string[]>;
 } {
   if (!catName || !catName.trim()) return {};
 

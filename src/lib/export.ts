@@ -10,6 +10,7 @@ export interface ExportRow {
   Pattern: string;
   Fabric: string;
   Collar: string;
+  Pocket: string;
   Sleeve: string;
   Fit: string;
   Color: string;
@@ -34,6 +35,7 @@ export function downloadExcel(data: ExportRow[]): void {
     { wch: 12 }, // Pattern
     { wch: 12 }, // Fabric
     { wch: 16 }, // Collar
+    { wch: 14 }, // Pocket
     { wch: 14 }, // Sleeve
     { wch: 14 }, // Fit
     { wch: 12 }, // Color

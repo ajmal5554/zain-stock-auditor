@@ -39,6 +39,7 @@ import {
   MUNDU_BORDERS,
   isInnerwearCategory,
   isMunduCategory,
+  isShirtCategory,
 } from "@/lib/constants";
 import { resolveCategoryAttributes } from "@/lib/store-defaults";
 
@@ -131,6 +132,8 @@ export default function InventoryPage() {
   const [editFormBorder, setEditFormBorder] = useState<string | null>(null);
   const [editFormFit, setEditFormFit] = useState<string | null>(null);
   const [editFormColor, setEditFormColor] = useState<string | null>(null);
+  const [editFormPocket, setEditFormPocket] = useState<string | null>(null);
+  const [editFormCustomMeta, setEditFormCustomMeta] = useState<Record<string, string>>({});
   const [editFormNotes, setEditFormNotes] = useState("");
   const [savingProductEdit, setSavingProductEdit] = useState(false);
 
@@ -448,6 +451,17 @@ export default function InventoryPage() {
     setEditFormCollar(product.customMeta?.collar || null);
     setEditFormSubtype(product.customMeta?.subtype || null);
     setEditFormBorder(product.customMeta?.border || null);
+    setEditFormPocket(product.customMeta?.pocket || null);
+
+    const extraMeta: Record<string, string> = {};
+    if (product.customMeta) {
+      for (const [k, v] of Object.entries(product.customMeta)) {
+        if (!["subtype", "collar", "border", "pocket", "fit", "color"].includes(k) && typeof v === "string") {
+          extraMeta[k] = v;
+        }
+      }
+    }
+    setEditFormCustomMeta(extraMeta);
 
     // Extract Fit: from customMeta.fit or regex match from notes
     const extractedFit =
@@ -499,6 +513,8 @@ export default function InventoryPage() {
           collar: editFormCollar,
           subtype: editFormSubtype,
           border: editFormBorder,
+          pocket: editFormPocket,
+          customMeta: editFormCustomMeta,
           fit: editFormFit,
           color: editFormColor,
           userNote: editFormNotes.trim(),
@@ -601,6 +617,20 @@ export default function InventoryPage() {
                   {product.customMeta.border}
                 </Badge>
               )}
+              {product.customMeta?.pocket && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-teal-50 text-teal-700 border-teal-200">
+                  {product.customMeta.pocket}
+                </Badge>
+              )}
+              {Object.entries(product.customMeta || {}).map(([key, val]) => {
+                if (["subtype", "collar", "border", "pocket", "fit", "color"].includes(key)) return null;
+                if (!val || typeof val !== "string") return null;
+                return (
+                  <Badge key={key} variant="subtle" className="text-[10px] py-0 font-semibold bg-purple-50 text-purple-700 border-purple-200">
+                    {key}: {val}
+                  </Badge>
+                );
+              })}
               {product.pattern && (
                 <Badge variant="subtle" className="text-[10px] py-0 font-medium">
                   {product.pattern}
@@ -1722,6 +1752,74 @@ export default function InventoryPage() {
                 </select>
               </div>
             )}
+
+            {(!isInnerwearCategory(selectedEditCatName) && !isMunduCategory(selectedEditCatName) && (editFormPocket || isShirtCategory(selectedEditCatName) || (editCatAttrs.pockets && editCatAttrs.pockets.length > 0))) && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Pocket Style</span>
+                  {editFormPocket && (
+                    <span className="text-[10px] text-teal-700 font-semibold lowercase">
+                      ({editFormPocket})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormPocket || ""}
+                  onChange={(e) => setEditFormPocket(e.target.value || null)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  <option value="">None / Not Specified</option>
+                  {(editCatAttrs.pockets || ["No Pocket", "Single Pocket", "Double Pocket"]).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                  {editFormPocket &&
+                    !(editCatAttrs.pockets || ["No Pocket", "Single Pocket", "Double Pocket"]).includes(editFormPocket) && (
+                      <option value={editFormPocket}>{editFormPocket}</option>
+                    )}
+                </select>
+              </div>
+            )}
+
+            {/* Dynamic Custom Attributes for this category */}
+            {Object.entries(editCatAttrs.customAttributes || {}).map(([attrName, options]) => (
+              <div key={attrName}>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>{attrName}</span>
+                  {editFormCustomMeta[attrName] && (
+                    <span className="text-[10px] text-purple-700 font-semibold lowercase">
+                      ({editFormCustomMeta[attrName]})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormCustomMeta[attrName] || ""}
+                  onChange={(e) =>
+                    setEditFormCustomMeta((prev) => {
+                      const next = { ...prev };
+                      if (e.target.value) next[attrName] = e.target.value;
+                      else delete next[attrName];
+                      return next;
+                    })
+                  }
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  <option value="">None / Not Specified</option>
+                  {(options || []).map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                  {editFormCustomMeta[attrName] &&
+                    !(options || []).includes(editFormCustomMeta[attrName]) && (
+                      <option value={editFormCustomMeta[attrName]}>
+                        {editFormCustomMeta[attrName]}
+                      </option>
+                    )}
+                </select>
+              </div>
+            ))}
 
             {(isInnerwearCategory(selectedEditCatName) || editFormSubtype || (editCatAttrs.subtypes && editCatAttrs.subtypes.length > 0)) && (
               <div>

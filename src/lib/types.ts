@@ -41,6 +41,7 @@ export interface ExportRow {
   Pattern: string;
   Fabric: string;
   Collar: string;
+  Pocket: string;
   Sleeve: string;
   Fit: string;
   Color: string;

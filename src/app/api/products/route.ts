@@ -255,6 +255,8 @@ export async function PATCH(request: Request) {
       collar,
       subtype,
       border,
+      pocket,
+      customMeta,
       userNote,
       notes,
     } = body;
@@ -275,6 +277,10 @@ export async function PATCH(request: Request) {
     const existingMeta = (existingProduct.customMeta as Record<string, string>) || {};
     const newMeta: Record<string, string> = { ...existingMeta };
 
+    if (customMeta && typeof customMeta === "object") {
+      Object.assign(newMeta, customMeta);
+    }
+
     if (fit !== undefined) {
       if (fit) newMeta.fit = fit;
       else delete newMeta.fit;
@@ -294,6 +300,10 @@ export async function PATCH(request: Request) {
     if (border !== undefined) {
       if (border) newMeta.border = border;
       else delete newMeta.border;
+    }
+    if (pocket !== undefined) {
+      if (pocket) newMeta.pocket = pocket;
+      else delete newMeta.pocket;
     }
 
     const data: Record<string, unknown> = {};

@@ -127,6 +127,14 @@ export function isInnerwearCategory(categoryName: string): boolean {
   return lower.includes("innerwear") || lower.includes("vest") || lower.includes("brief");
 }
 
+/** Check if category is Shirt */
+export function isShirtCategory(categoryName: string): boolean {
+  const lower = categoryName.toLowerCase();
+  return lower.includes("shirt") && !lower.includes("t-shirt") && !lower.includes("tshirt");
+}
+
+export const DEFAULT_POCKETS = ["No Pocket", "Single Pocket", "Double Pocket"];
+
 /** Check if a category should show sleeve options */
 export function shouldShowSleeve(categoryName: string): boolean {
   const lower = categoryName.toLowerCase();
@@ -185,3 +193,35 @@ export const POPULAR_RETAIL_BRANDS = [
   "Unbranded",
   "Local",
 ];
+
+/** Standard retail MRP benchmark price points per category keyword */
+export const DEFAULT_MRP_SUGGESTIONS: Record<string, number[]> = {
+  shirt: [499, 599, 650, 699, 700, 725, 750, 799, 800, 850, 899, 999, 1099, 1199, 1299, 1499],
+  tshirt: [299, 399, 449, 499, 549, 599, 649, 699, 749, 799, 899, 999],
+  "t-shirt": [299, 399, 449, 499, 549, 599, 649, 699, 749, 799, 899, 999],
+  polo: [399, 499, 599, 699, 799, 899, 999, 1199],
+  pant: [699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1999],
+  pants: [699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1999],
+  trouser: [699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1999],
+  trousers: [699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1999],
+  "trousers/pants": [699, 799, 899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1999],
+  jean: [899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1899, 1999, 2199, 2499],
+  jeans: [899, 999, 1099, 1199, 1299, 1399, 1499, 1699, 1899, 1999, 2199, 2499],
+  innerwear: [85, 95, 105, 120, 135, 150, 175, 199, 220, 250, 299, 349, 399],
+  mundu: [250, 300, 350, 400, 450, 500, 550, 600, 700, 750, 850, 1000, 1200],
+  dhoti: [250, 300, 350, 400, 450, 500, 550, 600, 700, 750, 850, 1000, 1200],
+  kurta: [599, 699, 799, 899, 999, 1099, 1199, 1299, 1499, 1699, 1999],
+  default: [399, 499, 599, 650, 699, 700, 725, 750, 799, 800, 850, 899, 999, 1199, 1499],
+};
+
+export function getCategoryMrpPresets(categoryName?: string | null): number[] {
+  if (!categoryName) return DEFAULT_MRP_SUGGESTIONS.default;
+  const lower = categoryName.toLowerCase().trim();
+  for (const [key, prices] of Object.entries(DEFAULT_MRP_SUGGESTIONS)) {
+    if (key !== "default" && lower.includes(key)) {
+      return prices;
+    }
+  }
+  return DEFAULT_MRP_SUGGESTIONS.default;
+}
+

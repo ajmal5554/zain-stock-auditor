@@ -59,6 +59,8 @@ interface CategoryAttributes {
   fabrics?: string[];
   patterns?: string[];
   borders?: string[];
+  pockets?: string[];
+  customAttributes?: Record<string, string[]>;
 }
 
 type AttributesMap = Record<string, CategoryAttributes>;
@@ -73,6 +75,7 @@ const STARTER_TEMPLATES: Record<string, { scales: SizeScale[]; attrs: CategoryAt
     attrs: {
       sleeves: ["Full Sleeve", "Half Sleeve"],
       collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Spread Collar"],
+      pockets: ["No Pocket", "Single Pocket", "Double Pocket"],
       fits: ["Regular Fit", "Slim Fit"],
       fabrics: ["Cotton", "Linen", "Cotton Blend", "Oxford Cotton"],
       patterns: ["Plain", "Checks", "Stripes", "Printed"],
@@ -205,6 +208,8 @@ export default function SettingsPage() {
   // Attribute State
   const [selectedAttrCategory, setSelectedAttrCategory] = useState<string>("");
   const [newAttrValue, setNewAttrValue] = useState<Record<string, string>>({});
+  const [newCustomGroupInput, setNewCustomGroupInput] = useState("");
+  const [newCustomOptionInput, setNewCustomOptionInput] = useState<Record<string, string>>({});
 
   // Category Manager State
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -560,11 +565,21 @@ export default function SettingsPage() {
     toast.success(`Loaded starter attributes for ${selectedAttrCategory}`);
   };
 
-  const handleAddAttributeTag = (attrType: keyof CategoryAttributes) => {
+  type StandardAttrKey =
+    | "subtypes"
+    | "collars"
+    | "sleeves"
+    | "fits"
+    | "fabrics"
+    | "patterns"
+    | "borders"
+    | "pockets";
+
+  const handleAddAttributeTag = (attrType: StandardAttrKey) => {
     const val = (newAttrValue[attrType] || "").trim();
     if (!val || !selectedAttrCategory) return;
     const currentCatAttrs = attributes[selectedAttrCategory] || {};
-    const currentList = currentCatAttrs[attrType] || [];
+    const currentList = (currentCatAttrs[attrType] as string[]) || [];
     if (currentList.includes(val)) {
       toast.error(`"${val}" already exists`);
       return;
@@ -578,10 +593,10 @@ export default function SettingsPage() {
     saveAllSettings(undefined, updated);
   };
 
-  const handleRemoveAttributeTag = (attrType: keyof CategoryAttributes, tag: string) => {
+  const handleRemoveAttributeTag = (attrType: StandardAttrKey, tag: string) => {
     if (!selectedAttrCategory) return;
     const currentCatAttrs = attributes[selectedAttrCategory] || {};
-    const currentList = currentCatAttrs[attrType] || [];
+    const currentList = (currentCatAttrs[attrType] as string[]) || [];
     const updated = {
       ...attributes,
       [selectedAttrCategory]: { ...currentCatAttrs, [attrType]: currentList.filter((t) => t !== tag) },
@@ -596,6 +611,92 @@ export default function SettingsPage() {
     setAttributes(updated);
     saveAllSettings(undefined, updated);
     toast.success(`Cleared all attributes for ${selectedAttrCategory}`);
+  };
+
+  const handleAddCustomGroup = () => {
+    const trimmed = newCustomGroupInput.trim();
+    if (!trimmed || !selectedAttrCategory) {
+      toast.error("Enter an attribute name");
+      return;
+    }
+    const currentCatAttrs = attributes[selectedAttrCategory] || {};
+    const existingCustom = currentCatAttrs.customAttributes || {};
+    if (existingCustom[trimmed]) {
+      toast.error(`Attribute "${trimmed}" already exists`);
+      return;
+    }
+    const updated = {
+      ...attributes,
+      [selectedAttrCategory]: {
+        ...currentCatAttrs,
+        customAttributes: { ...existingCustom, [trimmed]: [] },
+      },
+    };
+    setAttributes(updated);
+    setNewCustomGroupInput("");
+    saveAllSettings(undefined, updated);
+    toast.success(`Created attribute group "${trimmed}"`);
+  };
+
+  const handleRemoveCustomGroup = (groupName: string) => {
+    if (!selectedAttrCategory) return;
+    const currentCatAttrs = attributes[selectedAttrCategory] || {};
+    const existingCustom = { ...(currentCatAttrs.customAttributes || {}) };
+    delete existingCustom[groupName];
+    const updated = {
+      ...attributes,
+      [selectedAttrCategory]: {
+        ...currentCatAttrs,
+        customAttributes: existingCustom,
+      },
+    };
+    setAttributes(updated);
+    saveAllSettings(undefined, updated);
+    toast.success(`Removed attribute group "${groupName}"`);
+  };
+
+  const handleAddCustomOption = (groupName: string) => {
+    const val = (newCustomOptionInput[groupName] || "").trim();
+    if (!val || !selectedAttrCategory) return;
+    const currentCatAttrs = attributes[selectedAttrCategory] || {};
+    const existingCustom = currentCatAttrs.customAttributes || {};
+    const currentList = existingCustom[groupName] || [];
+    if (currentList.includes(val)) {
+      toast.error(`"${val}" already exists`);
+      return;
+    }
+    const updated = {
+      ...attributes,
+      [selectedAttrCategory]: {
+        ...currentCatAttrs,
+        customAttributes: {
+          ...existingCustom,
+          [groupName]: [...currentList, val],
+        },
+      },
+    };
+    setAttributes(updated);
+    setNewCustomOptionInput((prev) => ({ ...prev, [groupName]: "" }));
+    saveAllSettings(undefined, updated);
+  };
+
+  const handleRemoveCustomOption = (groupName: string, option: string) => {
+    if (!selectedAttrCategory) return;
+    const currentCatAttrs = attributes[selectedAttrCategory] || {};
+    const existingCustom = currentCatAttrs.customAttributes || {};
+    const currentList = existingCustom[groupName] || [];
+    const updated = {
+      ...attributes,
+      [selectedAttrCategory]: {
+        ...currentCatAttrs,
+        customAttributes: {
+          ...existingCustom,
+          [groupName]: currentList.filter((item) => item !== option),
+        },
+      },
+    };
+    setAttributes(updated);
+    saveAllSettings(undefined, updated);
   };
 
   // ═══════════════════════════════ CATEGORY ACTIONS ═══════════════════════════════
@@ -706,6 +807,8 @@ export default function SettingsPage() {
       indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
       blue: "bg-blue-50 text-blue-700 border-blue-100",
       amber: "bg-amber-50 text-amber-700 border-amber-200",
+      teal: "bg-teal-50 text-teal-700 border-teal-200",
+      purple: "bg-purple-50 text-purple-700 border-purple-200",
     };
     return (
       <div className="flex flex-wrap gap-1.5 min-h-[32px]">
@@ -1257,6 +1360,7 @@ export default function SettingsPage() {
               [
                 { key: "subtypes" as const, label: "Subtypes (Brief, Trunk, Vest, Hoodie...)", color: "indigo", placeholder: "Add subtype..." },
                 { key: "collars" as const, label: "Collar / Neck Styles", color: "blue", placeholder: "Add collar style..." },
+                { key: "pockets" as const, label: "Pocket Styles (No Pocket, Single, Double...)", color: "teal", placeholder: "Add pocket style (e.g. Single Pocket)..." },
                 { key: "sleeves" as const, label: "Sleeve Options", color: "slate", placeholder: "Add sleeve..." },
                 { key: "fabrics" as const, label: "Fabrics & Materials", color: "amber", placeholder: "Add fabric..." },
                 { key: "patterns" as const, label: "Patterns & Prints", color: "slate", placeholder: "Add pattern..." },
@@ -1313,6 +1417,81 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+
+            {/* Custom Dynamic Attribute Cards */}
+            {Object.entries(currentCategoryAttrs.customAttributes || {}).map(([groupName, options]) => (
+              <div key={groupName} className="bg-purple-50/30 border border-purple-200/80 rounded-xl p-3.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                      Custom
+                    </span>
+                    <label className="text-xs font-semibold text-slate-800">{groupName}</label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCustomGroup(groupName)}
+                    className="text-[11px] text-slate-400 hover:text-red-600 transition-colors flex items-center gap-1"
+                    title={`Delete ${groupName} attribute group`}
+                  >
+                    <Trash2 size={12} />
+                    Delete Group
+                  </button>
+                </div>
+                <TagList
+                  items={options || []}
+                  onRemove={(tag) => handleRemoveCustomOption(groupName, tag)}
+                  color="purple"
+                />
+                <div className="flex gap-1.5 pt-1">
+                  <Input
+                    placeholder={`Add option to ${groupName}...`}
+                    value={newCustomOptionInput[groupName] || ""}
+                    onChange={(e) => setNewCustomOptionInput((prev) => ({ ...prev, [groupName]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomOption(groupName);
+                      }
+                    }}
+                    className="h-7 text-xs bg-white"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddCustomOption(groupName)}
+                    className="h-7 text-xs px-3 shrink-0"
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {/* Add New Custom Attribute Type Bar */}
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3 flex flex-col sm:flex-row items-center gap-2">
+              <Input
+                placeholder="New attribute group (e.g. Rise, Closure, Button Type, Occasion)..."
+                value={newCustomGroupInput}
+                onChange={(e) => setNewCustomGroupInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCustomGroup();
+                  }
+                }}
+                className="h-8 text-xs bg-white flex-1"
+              />
+              <Button
+                size="sm"
+                onClick={handleAddCustomGroup}
+                disabled={!newCustomGroupInput.trim()}
+                className="h-8 text-xs gap-1.5 shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Plus size={13} />
+                Add Attribute Type
+              </Button>
+            </div>
           </div>
         </div>
       )}
