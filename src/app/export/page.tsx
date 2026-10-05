@@ -114,7 +114,13 @@ export default function ExportPage() {
         (r) =>
           r.Category.toLowerCase().includes(previewSearch.toLowerCase()) ||
           r.Brand.toLowerCase().includes(previewSearch.toLowerCase()) ||
-          r.Size.toLowerCase().includes(previewSearch.toLowerCase())
+          r.Size.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Fit?.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Color?.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Collar?.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Subtype?.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Border?.toLowerCase().includes(previewSearch.toLowerCase()) ||
+          r.Notes?.toLowerCase().includes(previewSearch.toLowerCase())
       )
     : [];
 
@@ -261,7 +267,7 @@ export default function ExportPage() {
               <span>Report Specifications</span>
             </h4>
             <div className="space-y-1.5 text-xs text-slate-500">
-              <p>• Data fields: Category, Subtype, Brand, Pattern, Fabric, Sleeve, Size, Quantity, Retail MRP, Valuation.</p>
+              <p>• Data fields: Category, Subtype, Brand, Pattern, Fabric, Collar, Sleeve, Fit, Color, Border, Size, Quantity, Retail MRP, Valuation, Notes.</p>
               <p>• Currency format: Indian Rupee (₹ INR) with standard Indian numbering formatting.</p>
               <p>• Live database sync: Direct extraction from Neon Cloud PostgreSQL production branch.</p>
             </div>
@@ -388,6 +394,7 @@ export default function ExportPage() {
                       <TableRow>
                         <TableHead className="text-xs font-bold py-3 pl-4">Category</TableHead>
                         <TableHead className="text-xs font-bold">Brand</TableHead>
+                        <TableHead className="text-xs font-bold">Attributes</TableHead>
                         <TableHead className="text-xs font-bold text-center">Size</TableHead>
                         <TableHead className="text-xs font-bold text-right">Qty</TableHead>
                         <TableHead className="text-xs font-bold text-right">MRP</TableHead>
@@ -402,6 +409,61 @@ export default function ExportPage() {
                           </TableCell>
                           <TableCell className="text-slate-800 font-medium">
                             {row.Brand}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[220px]">
+                              {row.Subtype && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
+                                  {row.Subtype}
+                                </span>
+                              )}
+                              {row.Collar && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-[10px] font-semibold text-blue-700 border border-blue-100">
+                                  {row.Collar}
+                                </span>
+                              )}
+                              {row.Border && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-[10px] font-semibold text-amber-700 border border-amber-100">
+                                  {row.Border}
+                                </span>
+                              )}
+                              {row.Fit && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-[10px] font-semibold text-purple-700 border border-purple-100">
+                                  {row.Fit}
+                                </span>
+                              )}
+                              {row.Color && (
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                    row.Color.toLowerCase() === "white"
+                                      ? "bg-slate-100 text-slate-800 border-slate-300"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {row.Color}
+                                </span>
+                              )}
+                              {row.Pattern && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                  {row.Pattern}
+                                </span>
+                              )}
+                              {row.Fabric && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                  {row.Fabric}
+                                </span>
+                              )}
+                              {row.Sleeve && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                  {row.Sleeve}
+                                </span>
+                              )}
+                              {row.Notes && (
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-slate-50 text-[10px] font-normal italic text-slate-500">
+                                  {row.Notes}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="subtle" className="text-[10px] font-bold px-2 py-0">

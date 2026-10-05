@@ -22,28 +22,48 @@ export async function GET() {
       const meta = (product.customMeta as Record<string, string>) || {};
       const fit =
         meta.fit ||
-        product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0] ||
+        product.notes?.match(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/i)?.[0] ||
         "";
       const color =
         meta.color ||
         (product.notes?.toLowerCase().includes("white")
           ? "White"
           : "Color");
+      const collar = meta.collar || "";
+      const subtype = meta.subtype || "";
+      const border = meta.border || "";
+
+      // Extract real user notes/remarks, excluding the fit • color tags
+      let cleanNote = "";
+      if (product.notes) {
+        if (product.notes.includes("|")) {
+          cleanNote = product.notes.split("|").slice(1).join("|").trim();
+        } else {
+          cleanNote = product.notes
+            .replace(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/gi, "")
+            .replace(/•\s*(White|Color|[a-zA-Z\s]+)/gi, "")
+            .replace(/^[\s•|]+|[\s•|]+$/g, "")
+            .trim();
+        }
+      }
 
       return product.variants.map((variant) => ({
         ID: variant.id,
         Category: product.category.name,
+        Subtype: subtype,
         Brand: product.brand,
         Pattern: product.pattern || "",
         Fabric: product.fabric || "",
+        Collar: collar,
         Sleeve: product.sleeve || "",
         Fit: fit,
         Color: color,
+        Border: border,
         Size: variant.size,
         Quantity: variant.quantity,
         "MRP (₹)": product.mrp,
         "Total Value (₹)": variant.quantity * product.mrp,
-        Notes: product.notes || "",
+        Notes: cleanNote,
         "Last Updated": variant.updatedAt.toISOString().replace("T", " ").slice(0, 19),
       }));
     });

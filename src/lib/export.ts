@@ -5,10 +5,15 @@ import { getTimestampedFilename } from "./constants";
 export interface ExportRow {
   ID: string;
   Category: string;
+  Subtype: string;
   Brand: string;
   Pattern: string;
   Fabric: string;
+  Collar: string;
   Sleeve: string;
+  Fit: string;
+  Color: string;
+  Border: string;
   Size: string;
   Quantity: number;
   "MRP (₹)": number;
@@ -24,15 +29,20 @@ export function downloadExcel(data: ExportRow[]): void {
   ws["!cols"] = [
     { wch: 12 }, // ID
     { wch: 14 }, // Category
+    { wch: 14 }, // Subtype
     { wch: 18 }, // Brand
     { wch: 12 }, // Pattern
     { wch: 12 }, // Fabric
+    { wch: 16 }, // Collar
     { wch: 14 }, // Sleeve
+    { wch: 14 }, // Fit
+    { wch: 12 }, // Color
+    { wch: 14 }, // Border
     { wch: 10 }, // Size
     { wch: 10 }, // Quantity
-    { wch: 12 }, // MRP
-    { wch: 14 }, // Total Value
-    { wch: 20 }, // Notes
+    { wch: 12 }, // MRP (₹)
+    { wch: 14 }, // Total Value (₹)
+    { wch: 22 }, // Notes
     { wch: 20 }, // Last Updated
   ];
 

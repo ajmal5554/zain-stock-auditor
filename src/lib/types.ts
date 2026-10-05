@@ -36,10 +36,15 @@ export interface Product {
 export interface ExportRow {
   ID: string;
   Category: string;
+  Subtype: string;
   Brand: string;
   Pattern: string;
   Fabric: string;
+  Collar: string;
   Sleeve: string;
+  Fit: string;
+  Color: string;
+  Border: string;
   Size: string;
   Quantity: number;
   "MRP (₹)": number;
@@ -47,3 +52,4 @@ export interface ExportRow {
   Notes: string;
   "Last Updated": string;
 }
+
