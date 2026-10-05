@@ -381,6 +381,23 @@ export default function InventoryPage() {
                   {product.fabric}
                 </Badge>
               )}
+              {(product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-purple-50 text-purple-700 border-purple-200">
+                  {product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
+                </Badge>
+              )}
+              {(product.customMeta?.color || product.notes) && (
+                <Badge
+                  variant="subtle"
+                  className={`text-[10px] py-0 font-bold ${
+                    (product.customMeta?.color?.toLowerCase() === "white" || product.notes?.toLowerCase().includes("white"))
+                      ? "bg-slate-100 text-slate-800 border-slate-300"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}
+                >
+                  {product.customMeta?.color || (product.notes?.toLowerCase().includes("white") ? "White" : "Color")}
+                </Badge>
+              )}
             </div>
 
             <h3 className="text-sm font-bold text-slate-900 truncate">
@@ -845,7 +862,21 @@ export default function InventoryPage() {
                                     {product.sleeve}
                                   </span>
                                 )}
-                                {!product.pattern && !product.fabric && !product.sleeve && !product.customMeta && (
+                                {(product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-[10px] font-semibold text-purple-700 border border-purple-100">
+                                    {product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
+                                  </span>
+                                )}
+                                {(product.customMeta?.color || product.notes) && (
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                    (product.customMeta?.color?.toLowerCase() === "white" || product.notes?.toLowerCase().includes("white"))
+                                      ? "bg-slate-100 text-slate-800 border-slate-300"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}>
+                                    {product.customMeta?.color || (product.notes?.toLowerCase().includes("white") ? "White" : "Color")}
+                                  </span>
+                                )}
+                                {!product.pattern && !product.fabric && !product.sleeve && !product.customMeta && !product.notes && (
                                   <span className="text-slate-400 text-xs">—</span>
                                 )}
                               </div>

@@ -12,6 +12,8 @@ import {
   Search,
   Zap,
   Clock,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { auditEntrySchema, type AuditEntryInput } from "@/lib/schemas";
@@ -28,6 +30,7 @@ import {
   isMunduCategory,
   isInnerwearCategory,
 } from "@/lib/constants";
+import { resolveCategoryAttributes } from "@/lib/store-defaults";
 import { enqueueOffline, setupOfflineSync } from "@/lib/offline-queue";
 
 import { Button } from "@/components/ui/button";
@@ -61,6 +64,8 @@ interface RecentAuditItem {
   brand: string;
   pieces: number;
   mrp: number;
+  fit?: string | null;
+  color?: string | null;
   time: string;
 }
 
@@ -105,6 +110,26 @@ export default function AuditPage() {
   const [selectedSubtype, setSelectedSubtype] = useState<string | null>(null);
   const [selectedCollar, setSelectedCollar] = useState<string | null>(null);
   const [selectedBorder, setSelectedBorder] = useState<string | null>(null);
+  const [customColors, setCustomColors] = useState<string[]>([]);
+
+  // Add Attribute Modal State
+  const [isAddAttrDialogOpen, setIsAddAttrDialogOpen] = useState(false);
+  const [modalAttrType, setModalAttrType] = useState<
+    "fabrics" | "collars" | "sleeves" | "fits" | "patterns" | "subtypes" | "borders"
+  >("fabrics");
+  const [modalAttrVal, setModalAttrVal] = useState("");
+  const [modalSaving, setModalSaving] = useState(false);
+
+  // Form persistence & workflow
+  const [hasDraft, setHasDraft] = useState(false);
+  const [keepDetailsForNext, setKeepDetailsForNext] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("zain_keep_details_for_next");
+      return saved !== null ? saved === "true" : true;
+    }
+    return true;
+  });
+  const [lastSavedStyle, setLastSavedStyle] = useState<RecentAuditItem | null>(null);
 
   const brandInputRef = useRef<HTMLInputElement>(null);
   const mrpInputRef = useRef<HTMLInputElement>(null);
@@ -290,21 +315,9 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     });
   };
 
-  // Attributes for currently selected category — strictly follows user settings
+  // Attributes for currently selected category — uses store attributes with smart fallbacks
   const currentCategoryAttrs = useMemo(() => {
-    if (!selectedCategoryName) return {};
-    if (storeAttributes[selectedCategoryName]) {
-      return storeAttributes[selectedCategoryName];
-    }
-    // Case-insensitive lookup in user settings
-    const targetNorm = selectedCategoryName.toLowerCase().replace(/s\b|&.*$/g, "").trim();
-    for (const [key, attrs] of Object.entries(storeAttributes)) {
-      const keyNorm = key.toLowerCase().replace(/s\b|&.*$/g, "").trim();
-      if (keyNorm === targetNorm || key.toLowerCase() === selectedCategoryName.toLowerCase()) {
-        return attrs;
-      }
-    }
-    return {};
+    return resolveCategoryAttributes(selectedCategoryName, storeAttributes);
   }, [storeAttributes, selectedCategoryName]);
 
   // Update category and sleeve visibility
@@ -404,6 +417,254 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     }
   };
 
+  // Helper to select an attribute in the form/state
+  const selectAttributeValue = useCallback(
+    (attrKey: string, val: string | null) => {
+      const k = attrKey.toLowerCase();
+      if (k === "patterns" || k === "pattern") setValue("pattern", val);
+      else if (k === "fabrics" || k === "fabric") setValue("fabric", val);
+      else if (k === "sleeves" || k === "sleeve") setValue("sleeve", val);
+      else if (k === "fits" || k === "fit") setValue("fit", val);
+      else if (k === "collars" || k === "collar") setSelectedCollar(val);
+      else if (k === "subtypes" || k === "subtype") setSelectedSubtype(val);
+      else if (k === "borders" || k === "border") setSelectedBorder(val);
+      else if (k === "color") setValue("color", val);
+    },
+    [setValue]
+  );
+
+  // Add an attribute value directly from Audit page and persist to database
+  const handleAddAttributeValue = useCallback(
+    async (
+      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders",
+      val: string
+    ) => {
+      const trimmed = val.trim();
+      if (!trimmed || !selectedCategoryName) return;
+
+      const existingCatAttrs = currentCategoryAttrs;
+      const existingList = existingCatAttrs[attrKey] || [];
+      if (existingList.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+        toast(`"${trimmed}" is already an option`, "info");
+        selectAttributeValue(attrKey, trimmed);
+        return;
+      }
+
+      const updatedList = [...existingList, trimmed];
+      const updatedCategoryAttrs = {
+        ...existingCatAttrs,
+        [attrKey]: updatedList,
+      };
+
+      const newStoreAttributes = {
+        ...storeAttributes,
+        [selectedCategoryName]: updatedCategoryAttrs,
+      };
+
+      setStoreAttributes(newStoreAttributes);
+      try {
+        localStorage.setItem("zain_category_attributes", JSON.stringify(newStoreAttributes));
+      } catch {}
+
+      selectAttributeValue(attrKey, trimmed);
+      toast(`✓ Added "${trimmed}" to ${selectedCategoryName}`, "success");
+
+      // Save to database
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: newStoreAttributes }),
+      }).catch((e) => console.error("Failed to save attribute:", e));
+    },
+    [currentCategoryAttrs, selectedCategoryName, storeAttributes, selectAttributeValue]
+  );
+
+  // Remove an attribute option from the category
+  const handleRemoveAttributeTag = useCallback(
+    async (
+      attrKey: "subtypes" | "collars" | "sleeves" | "fits" | "fabrics" | "patterns" | "borders",
+      tagToRemove: string
+    ) => {
+      if (!selectedCategoryName) return;
+      const existingCatAttrs = currentCategoryAttrs;
+      const existingList = existingCatAttrs[attrKey] || [];
+      const updatedList = existingList.filter((item) => item !== tagToRemove);
+
+      const updatedCategoryAttrs = {
+        ...existingCatAttrs,
+        [attrKey]: updatedList,
+      };
+
+      const newStoreAttributes = {
+        ...storeAttributes,
+        [selectedCategoryName]: updatedCategoryAttrs,
+      };
+
+      setStoreAttributes(newStoreAttributes);
+      try {
+        localStorage.setItem("zain_category_attributes", JSON.stringify(newStoreAttributes));
+      } catch {}
+
+      toast(`Removed "${tagToRemove}"`, "info");
+
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: newStoreAttributes }),
+      }).catch(() => {});
+    },
+    [currentCategoryAttrs, selectedCategoryName, storeAttributes]
+  );
+
+  // Add custom color and auto-select
+  const handleAddCustomColor = useCallback(
+    (newColor: string) => {
+      const trimmed = newColor.trim();
+      if (!trimmed) return;
+      setCustomColors((prev) => Array.from(new Set([...prev, trimmed])));
+      setValue("color", trimmed);
+      toast(`✓ Color "${trimmed}" selected`, "success");
+    },
+    [setValue]
+  );
+
+  // Modal Add Attribute Handler
+  const handleModalAddAttribute = async () => {
+    if (!modalAttrVal.trim() || !selectedCategoryName) return;
+    setModalSaving(true);
+    try {
+      await handleAddAttributeValue(modalAttrType, modalAttrVal);
+      setModalAttrVal("");
+      setIsAddAttrDialogOpen(false);
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  // Combine popular colors with dynamically added colors
+  const allColorOptions = useMemo(() => {
+    return Array.from(new Set([...POPULAR_COLORS, ...customColors]));
+  }, [customColors]);
+
+  // Clear current draft and form
+  const handleClearForm = useCallback(() => {
+    try {
+      localStorage.removeItem("zain_audit_draft_v1");
+    } catch {}
+    setHasDraft(false);
+    reset({
+      categoryId: watchedCategoryId,
+      brand: "",
+      pattern: null,
+      fabric: null,
+      sleeve: null,
+      fit: null,
+      color: null,
+      mrp: 0,
+      costPrice: null,
+      notes: null,
+      variants: [],
+    });
+    setSelectedSubtype(null);
+    setSelectedCollar(null);
+    setSelectedBorder(null);
+    if (currentCategoryScales.length > 0) {
+      const activeScale =
+        currentCategoryScales.find((s) => s.id === activeScaleId) || currentCategoryScales[0];
+      setSizes(activeScale.sizes.map((s) => ({ size: s, quantity: 0 })));
+    }
+    toast("Form reset", "info");
+  }, [watchedCategoryId, currentCategoryScales, activeScaleId, reset]);
+
+  // Auto-save form draft so navigating away never empties or wipes progress
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const currentValues = watch();
+      const hasAnyValue =
+        Boolean(currentValues.categoryId) ||
+        Boolean(currentValues.brand) ||
+        (currentValues.mrp && currentValues.mrp > 0) ||
+        Boolean(currentValues.pattern) ||
+        Boolean(currentValues.fabric) ||
+        Boolean(currentValues.sleeve) ||
+        Boolean(currentValues.fit) ||
+        Boolean(currentValues.color) ||
+        Boolean(selectedSubtype) ||
+        Boolean(selectedCollar) ||
+        Boolean(selectedBorder) ||
+        sizes.some((s) => s.quantity > 0);
+
+      if (hasAnyValue) {
+        setHasDraft(true);
+        try {
+          const draftPayload = {
+            categoryId: currentValues.categoryId,
+            brand: currentValues.brand,
+            mrp: currentValues.mrp,
+            pattern: currentValues.pattern,
+            fabric: currentValues.fabric,
+            sleeve: currentValues.sleeve,
+            fit: currentValues.fit,
+            color: currentValues.color,
+            notes: currentValues.notes,
+            selectedSubtype,
+            selectedCollar,
+            selectedBorder,
+            sizes,
+            activeScaleId,
+          };
+          localStorage.setItem("zain_audit_draft_v1", JSON.stringify(draftPayload));
+        } catch {}
+      } else {
+        setHasDraft(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    watchedCategoryId,
+    watchedBrand,
+    watchedMrp,
+    watch,
+    selectedSubtype,
+    selectedCollar,
+    selectedBorder,
+    sizes,
+    activeScaleId,
+  ]);
+
+  // Restore draft if user was in the middle of auditing
+  const restoredDraftRef = useRef(false);
+  useEffect(() => {
+    if (restoredDraftRef.current || categories.length === 0) return;
+    try {
+      const rawDraft = localStorage.getItem("zain_audit_draft_v1");
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (draft.categoryId && categories.some((c) => c.id === draft.categoryId)) {
+          setValue("categoryId", draft.categoryId);
+        }
+        if (draft.brand) setValue("brand", draft.brand);
+        if (draft.mrp) setValue("mrp", draft.mrp);
+        if (draft.pattern) setValue("pattern", draft.pattern);
+        if (draft.fabric) setValue("fabric", draft.fabric);
+        if (draft.sleeve) setValue("sleeve", draft.sleeve);
+        if (draft.fit) setValue("fit", draft.fit);
+        if (draft.color) setValue("color", draft.color);
+        if (draft.notes) setValue("notes", draft.notes);
+        if (draft.selectedSubtype) setSelectedSubtype(draft.selectedSubtype);
+        if (draft.selectedCollar) setSelectedCollar(draft.selectedCollar);
+        if (draft.selectedBorder) setSelectedBorder(draft.selectedBorder);
+        if (Array.isArray(draft.sizes) && draft.sizes.length > 0) {
+          setSizes(draft.sizes);
+        }
+        if (draft.activeScaleId) setActiveScaleId(draft.activeScaleId);
+        setHasDraft(true);
+      }
+    } catch {}
+    restoredDraftRef.current = true;
+  }, [categories, setValue]);
+
   const onSubmit = async (data: AuditEntryInput) => {
     setSubmitting(true);
     try {
@@ -427,23 +688,27 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         throw new Error("Server error");
       }
 
-      setSaveCount((c) => c + 1);
       const selectedCatObj = categories.find((c) => c.id === data.categoryId);
       const countedPieces = data.variants.reduce((s, v) => s + v.quantity, 0);
-      setRecentAudits((prev) => [
-        {
-          id: String(Date.now()),
-          category: selectedCatObj?.name || "Garment",
-          brand: data.brand,
-          pieces: countedPieces,
-          mrp: data.mrp,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-        ...prev.slice(0, 4),
-      ]);
+      const effectiveColor = data.color?.trim() || "Color";
+      const effectiveFit = data.fit?.trim() || null;
+      const newAuditItem: RecentAuditItem = {
+        id: String(Date.now()),
+        category: selectedCatObj?.name || "Garment",
+        brand: data.brand,
+        pieces: countedPieces,
+        mrp: data.mrp,
+        fit: effectiveFit,
+        color: effectiveColor,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      setLastSavedStyle(newAuditItem);
+      setRecentAudits((prev) => [newAuditItem, ...prev.slice(0, 4)]);
+      setSaveCount((c) => c + 1);
 
       toast(
-        `✓ Saved! ${saveCount + 1} rack styles recorded`,
+        `✓ Saved! ${countedPieces} pcs of ${data.brand} recorded`,
         "success"
       );
 
@@ -452,31 +717,55 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         rememberBrand(data.brand);
       }
 
-      // Clear quantities & sizes, preserve Category and Brand for rapid batch entry
-      const currentCategoryId = data.categoryId;
-      const currentBrand = data.brand;
-      reset({
-        categoryId: currentCategoryId,
-        brand: currentBrand,
-        pattern: null,
-        fabric: null,
-        sleeve: null,
-        fit: null,
-        color: null,
-        mrp: 0,
-        costPrice: null,
-        notes: null,
-        variants: [],
-      });
+      // Next item handling based on keepDetailsForNext setting
+      if (keepDetailsForNext) {
+        // Keep category, brand, MRP, and all attributes! Only reset size counts to 0
+        if (currentCategoryScales.length > 0) {
+          const activeScale =
+            currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+            currentCategoryScales[0];
+          setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        }
+      } else {
+        // Full reset except category and brand
+        const currentCategoryId = data.categoryId;
+        const currentBrand = data.brand;
+        reset({
+          categoryId: currentCategoryId,
+          brand: currentBrand,
+          pattern: null,
+          fabric: null,
+          sleeve: null,
+          fit: null,
+          color: null,
+          mrp: 0,
+          costPrice: null,
+          notes: null,
+          variants: [],
+        });
+        setSelectedSubtype(null);
+        setSelectedCollar(null);
+        setSelectedBorder(null);
 
-      if (currentCategoryScales.length > 0) {
-        const activeScale =
-          currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
-          currentCategoryScales[0];
-        setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        if (currentCategoryScales.length > 0) {
+          const activeScale =
+            currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+            currentCategoryScales[0];
+          setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        }
       }
 
-      setTimeout(() => mrpInputRef.current?.focus(), 150);
+      // Clear draft storage
+      try {
+        localStorage.removeItem("zain_audit_draft_v1");
+      } catch {}
+      setHasDraft(false);
+
+      setTimeout(() => {
+        if (!keepDetailsForNext) {
+          mrpInputRef.current?.focus();
+        }
+      }, 150);
     } catch {
       // Offline fallback: queue to localStorage
       const customMeta: Record<string, string> = {};
@@ -494,44 +783,62 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
 
       const selectedCatObj = categories.find((c) => c.id === data.categoryId);
       const countedPieces = data.variants.reduce((s, v) => s + v.quantity, 0);
-      setRecentAudits((prev) => [
-        {
-          id: String(Date.now()),
-          category: selectedCatObj?.name || "Garment",
-          brand: data.brand,
-          pieces: countedPieces,
-          mrp: data.mrp,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-        ...prev.slice(0, 4),
-      ]);
+      const newAuditItem: RecentAuditItem = {
+        id: String(Date.now()),
+        category: selectedCatObj?.name || "Garment",
+        brand: data.brand,
+        pieces: countedPieces,
+        mrp: data.mrp,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      setLastSavedStyle(newAuditItem);
+      setRecentAudits((prev) => [newAuditItem, ...prev.slice(0, 4)]);
+      setSaveCount((c) => c + 1);
 
       if (data.brand) {
         rememberBrand(data.brand);
       }
 
-      const currentCategoryId = data.categoryId;
-      const currentBrand = data.brand;
-      reset({
-        categoryId: currentCategoryId,
-        brand: currentBrand,
-        pattern: null,
-        fabric: null,
-        sleeve: null,
-        fit: null,
-        color: null,
-        mrp: 0,
-        costPrice: null,
-        notes: null,
-        variants: [],
-      });
+      if (keepDetailsForNext) {
+        if (currentCategoryScales.length > 0) {
+          const activeScale =
+            currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+            currentCategoryScales[0];
+          setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        }
+      } else {
+        const currentCategoryId = data.categoryId;
+        const currentBrand = data.brand;
+        reset({
+          categoryId: currentCategoryId,
+          brand: currentBrand,
+          pattern: null,
+          fabric: null,
+          sleeve: null,
+          fit: null,
+          color: null,
+          mrp: 0,
+          costPrice: null,
+          notes: null,
+          variants: [],
+        });
+        setSelectedSubtype(null);
+        setSelectedCollar(null);
+        setSelectedBorder(null);
 
-      if (currentCategoryScales.length > 0) {
-        const activeScale =
-          currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
-          currentCategoryScales[0];
-        setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        if (currentCategoryScales.length > 0) {
+          const activeScale =
+            currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+            currentCategoryScales[0];
+          setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+        }
       }
+
+      try {
+        localStorage.removeItem("zain_audit_draft_v1");
+      } catch {}
+      setHasDraft(false);
     } finally {
       setSubmitting(false);
     }
@@ -548,34 +855,75 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSubmit, onSubmit]);
 
-  /* ── Chip selector helper ── */
+  /* ── Enhanced Chip selector helper with inline Quick-Add ── */
   const ChipSelector = ({
     label,
     options,
     value,
     onChange,
+    onAdd,
     color = "indigo",
+    badge,
   }: {
     label: string;
     options: string[];
     value: string | null;
     onChange: (v: string | null) => void;
+    onAdd?: (newVal: string) => void;
     color?: "indigo" | "amber" | "slate";
+    badge?: React.ReactNode;
   }) => {
-    if (!options || options.length === 0) return null;
+    const [isAdding, setIsAdding] = useState(false);
+    const [addInput, setAddInput] = useState("");
+
+    if ((!options || options.length === 0) && !onAdd) return null;
+
     const colorMap = {
-      indigo: { active: "bg-indigo-600 text-white border-indigo-600", inactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300" },
-      amber: { active: "bg-amber-600 text-white border-amber-600", inactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300" },
-      slate: { active: "bg-slate-800 text-white border-slate-800", inactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300" },
+      indigo: {
+        active: "bg-indigo-600 text-white border-indigo-600 shadow-xs",
+        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+      },
+      amber: {
+        active: "bg-amber-600 text-white border-amber-600 shadow-xs",
+        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+      },
+      slate: {
+        active: "bg-slate-800 text-white border-slate-800 shadow-xs",
+        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+      },
     };
     const c = colorMap[color];
+
+    const handleCommitAdd = () => {
+      const trimmed = addInput.trim();
+      if (trimmed && onAdd) {
+        onAdd(trimmed);
+        setAddInput("");
+        setIsAdding(false);
+      }
+    };
+
     return (
       <div>
-        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          {label}
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {options.map((opt) => (
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            {label}
+          </label>
+          <div className="flex items-center gap-2">
+            {badge}
+            {value && (
+              <button
+                type="button"
+                onClick={() => onChange(null)}
+                className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(options || []).map((opt) => (
             <button
               key={opt}
               type="button"
@@ -587,6 +935,60 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               {opt}
             </button>
           ))}
+
+          {onAdd && (
+            isAdding ? (
+              <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg p-0.5 animate-slide-up">
+                <input
+                  type="text"
+                  placeholder="New..."
+                  value={addInput}
+                  onChange={(e) => setAddInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCommitAdd();
+                    } else if (e.key === "Escape") {
+                      setIsAdding(false);
+                      setAddInput("");
+                    }
+                  }}
+                  autoFocus
+                  className="w-24 px-1.5 py-0.5 text-xs text-slate-800 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCommitAdd}
+                  disabled={!addInput.trim()}
+                  className="w-5 h-5 rounded bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center disabled:opacity-40"
+                  title="Add option"
+                >
+                  <Check size={11} strokeWidth={2.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdding(false);
+                    setAddInput("");
+                  }}
+                  className="w-5 h-5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                  title="Cancel"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAdding(true)}
+                className="px-2 py-1 rounded-lg text-xs font-medium transition-all border border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-400 bg-slate-50 hover:bg-white flex items-center gap-0.5"
+                title={`Add new ${label}`}
+              >
+                <Plus size={11} />
+                <span>Add</span>
+              </button>
+            )
+          )}
         </div>
       </div>
     );
@@ -595,7 +997,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 md:pt-8 pb-24 md:pb-12">
       {/* Header — minimal */}
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-slate-900">Rack Audit</h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -619,6 +1021,34 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           </Button>
         )}
       </header>
+
+      {/* Recent save confirmation banner */}
+      {lastSavedStyle && (
+        <div className="mb-5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 animate-fade-in shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <Check size={14} strokeWidth={2.5} />
+            </div>
+            <div className="text-xs min-w-0">
+              <span className="font-bold">{lastSavedStyle.brand} ({lastSavedStyle.category})</span>
+              <span className="text-emerald-700 ml-1.5 font-medium">
+                • {lastSavedStyle.pieces} pcs recorded (₹{lastSavedStyle.mrp})
+              </span>
+              {(lastSavedStyle.fit || lastSavedStyle.color) && (
+                <span className="text-emerald-800 ml-1.5 font-semibold bg-emerald-100/90 px-1.5 py-0.5 rounded text-[10px]">
+                  {[lastSavedStyle.fit, lastSavedStyle.color].filter(Boolean).join(" • ")}
+                </span>
+              )}
+              <span className="text-emerald-600 text-[10px] ml-1.5 hidden sm:inline">
+                at {lastSavedStyle.time}
+              </span>
+            </div>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full shrink-0">
+            Ready for next scan
+          </span>
+        </div>
+      )}
 
       {/* Main Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -799,157 +1229,140 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             )}
           </section>
 
-          {/* Garment Attributes — only shows attributes configured by store owner */}
+          {/* Garment Attributes — shows store settings + quick add */}
           <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-                Attributes
-              </label>
-              <a
-                href="/settings"
-                className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                Configure in Settings →
-              </a>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                  Attributes
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  {selectedCategoryName || "Category"} options
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddAttrDialogOpen(true)}
+                  className="h-7 text-xs px-2.5 gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                >
+                  <Plus size={13} />
+                  Add Attribute
+                </Button>
+                <a
+                  href="/settings"
+                  className="text-[11px] text-slate-400 hover:text-indigo-600 font-medium hidden sm:inline"
+                >
+                  Settings →
+                </a>
+              </div>
             </div>
 
             {/* Subtypes */}
-            {currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0 && (
+            {((currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0) || isInnerwear) && (
               <ChipSelector
-                label="Subtype"
-                options={currentCategoryAttrs.subtypes}
+                label="Subtype / Style"
+                options={currentCategoryAttrs.subtypes || []}
                 value={selectedSubtype}
                 onChange={setSelectedSubtype}
+                onAdd={(val) => handleAddAttributeValue("subtypes", val)}
               />
             )}
 
             {/* Collars */}
-            {currentCategoryAttrs.collars && currentCategoryAttrs.collars.length > 0 && (
+            {(!isMundu && ((currentCategoryAttrs.collars && currentCategoryAttrs.collars.length > 0) || !isInnerwear)) && (
               <ChipSelector
                 label="Collar / Neck"
-                options={currentCategoryAttrs.collars}
+                options={currentCategoryAttrs.collars || []}
                 value={selectedCollar}
                 onChange={setSelectedCollar}
+                onAdd={(val) => handleAddAttributeValue("collars", val)}
               />
             )}
 
             {/* Pattern */}
-            {currentCategoryAttrs.patterns && currentCategoryAttrs.patterns.length > 0 && (
-              <div>
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                  Pattern
-                </label>
-                <Controller
-                  name="pattern"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleGroup
-                      type="single"
-                      value={field.value || ""}
-                      onValueChange={(val) => field.onChange(val || null)}
-                      variant="outline"
-                    >
-                      {currentCategoryAttrs.patterns!.map((p: string) => (
-                        <ToggleGroupItem key={p} value={p}>{p}</ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  )}
-                />
-              </div>
-            )}
+            <ChipSelector
+              label="Pattern"
+              options={currentCategoryAttrs.patterns || PATTERNS}
+              value={watch("pattern") || null}
+              onChange={(val) => setValue("pattern", val)}
+              onAdd={(val) => handleAddAttributeValue("patterns", val)}
+            />
 
             {/* Sleeve */}
-            {showSleeve && currentCategoryAttrs.sleeves && currentCategoryAttrs.sleeves.length > 0 && (
+            {showSleeve && (
               <div className="animate-fade-in">
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                  Sleeve
-                </label>
-                <Controller
-                  name="sleeve"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleGroup
-                      type="single"
-                      value={field.value || ""}
-                      onValueChange={(val) => field.onChange(val || null)}
-                      variant="outline"
-                    >
-                      {currentCategoryAttrs.sleeves!.map((s: string) => (
-                        <ToggleGroupItem key={s} value={s}>{s}</ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  )}
+                <ChipSelector
+                  label="Sleeve"
+                  options={currentCategoryAttrs.sleeves || SLEEVES}
+                  value={watch("sleeve") || null}
+                  onChange={(val) => setValue("sleeve", val)}
+                  onAdd={(val) => handleAddAttributeValue("sleeves", val)}
                 />
               </div>
             )}
 
             {/* Fabric */}
-            {currentCategoryAttrs.fabrics && currentCategoryAttrs.fabrics.length > 0 && (
-              <div>
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                  Fabric
-                </label>
-                <Controller
-                  name="fabric"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleGroup
-                      type="single"
-                      value={field.value || ""}
-                      onValueChange={(val) => field.onChange(val || null)}
-                      variant="outline"
-                    >
-                      {currentCategoryAttrs.fabrics!.map((f: string) => (
-                        <ToggleGroupItem key={f} value={f}>{f}</ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  )}
-                />
-              </div>
-            )}
+            <ChipSelector
+              label="Fabric"
+              options={currentCategoryAttrs.fabrics || FABRICS}
+              value={watch("fabric") || null}
+              onChange={(val) => setValue("fabric", val)}
+              onAdd={(val) => handleAddAttributeValue("fabrics", val)}
+            />
 
             {/* Fit */}
-            {!isMundu && currentCategoryAttrs.fits && currentCategoryAttrs.fits.length > 0 && (
+            {!isMundu && (
               <div className="animate-fade-in">
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                  Fit
-                </label>
-                <Controller
-                  name="fit"
-                  control={control}
-                  render={({ field }) => (
-                    <ToggleGroup
-                      type="single"
-                      value={field.value || ""}
-                      onValueChange={(val) => field.onChange(val || null)}
-                      variant="outline"
-                    >
-                      {currentCategoryAttrs.fits!.map((fit: string) => (
-                        <ToggleGroupItem key={fit} value={fit}>{fit}</ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  )}
+                <ChipSelector
+                  label="Fit"
+                  badge={
+                    watch("fit") ? (
+                      <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        {watch("fit")}
+                      </span>
+                    ) : undefined
+                  }
+                  options={currentCategoryAttrs.fits || FITS}
+                  value={watch("fit") || null}
+                  onChange={(val) => setValue("fit", val)}
+                  onAdd={(val) => handleAddAttributeValue("fits", val)}
                 />
               </div>
             )}
 
             {/* Mundu Border */}
-            {isMundu && currentCategoryAttrs.borders && currentCategoryAttrs.borders.length > 0 && (
+            {isMundu && (
               <ChipSelector
                 label="Mundu Border / Kasavu"
-                options={currentCategoryAttrs.borders}
+                options={currentCategoryAttrs.borders || MUNDU_BORDERS}
                 value={selectedBorder}
                 onChange={setSelectedBorder}
+                onAdd={(val) => handleAddAttributeValue("borders", val)}
                 color="amber"
               />
             )}
 
             {/* Color */}
             <ChipSelector
-              label="Color (optional)"
-              options={POPULAR_COLORS}
+              label="Color"
+              badge={
+                watch("color") ? (
+                  <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">
+                    {watch("color")}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Unselected: Default to Color
+                  </span>
+                )
+              }
+              options={allColorOptions}
               value={watch("color") || null}
               onChange={(val) => setValue("color", val)}
+              onAdd={handleAddCustomColor}
               color="slate"
             />
           </section>
@@ -1195,6 +1608,33 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             )}
           </Button>
 
+          {/* Quick settings & Clear draft */}
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={keepDetailsForNext}
+                onChange={(e) => {
+                  setKeepDetailsForNext(e.target.checked);
+                  try {
+                    localStorage.setItem("zain_keep_details_for_next", String(e.target.checked));
+                  } catch {}
+                }}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+              />
+              <span className="font-medium text-slate-600">Keep style & price for next scan</span>
+            </label>
+            {hasDraft && (
+              <button
+                type="button"
+                onClick={handleClearForm}
+                className="text-[11px] text-slate-400 hover:text-rose-600 font-medium"
+              >
+                Clear form
+              </button>
+            )}
+          </div>
+
           {/* Recent scans — compact */}
           {recentAudits.length > 0 && (
             <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1225,6 +1665,114 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           )}
         </div>
       </form>
+
+      {/* ── Add Attribute to Category Modal ── */}
+      <Dialog open={isAddAttrDialogOpen} onOpenChange={setIsAddAttrDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sparkles size={18} className="text-indigo-600" />
+              Manage Attributes: {selectedCategoryName || "Category"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Add new garment options directly from here. Saved instantly to your store.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Attribute Type
+              </label>
+              <select
+                value={modalAttrType}
+                onChange={(e) => setModalAttrType(e.target.value as any)}
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none shadow-2xs"
+              >
+                <option value="fabrics">Fabric / Material (Cotton, Linen, Rayon...)</option>
+                <option value="collars">Collar / Neck (Mandarin, Polo, Cuban...)</option>
+                <option value="sleeves">Sleeve Style (Full, Half, Sleeveless...)</option>
+                <option value="fits">Fit Type (Slim, Regular, Relaxed...)</option>
+                <option value="patterns">Pattern / Print (Plain, Checks, Striped...)</option>
+                <option value="subtypes">Subtype / Style (Brief, Trunk, Vest, Polo...)</option>
+                <option value="borders">Mundu Border / Zari (Kasavu, Kara, Double...)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                New Option Value
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. Linen Blend, Mandarin Collar, Comfort Fit..."
+                  value={modalAttrVal}
+                  onChange={(e) => setModalAttrVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleModalAddAttribute();
+                    }
+                  }}
+                  autoFocus
+                  className="h-9 text-xs flex-1"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleModalAddAttribute}
+                  disabled={!modalAttrVal.trim() || modalSaving}
+                  className="h-9 text-xs px-3.5 gap-1 shrink-0"
+                >
+                  {modalSaving && <Loader2 size={13} className="animate-spin" />}
+                  <Plus size={13} />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {/* List of current options for this type */}
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
+                Current {modalAttrType} in {selectedCategoryName}:
+              </span>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+                {(currentCategoryAttrs[modalAttrType] || []).length === 0 ? (
+                  <span className="text-xs text-slate-400 italic p-1">No options configured yet</span>
+                ) : (
+                  (currentCategoryAttrs[modalAttrType] || []).map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-md text-slate-700 font-medium shadow-2xs"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttributeTag(modalAttrType, tag)}
+                        className="text-slate-400 hover:text-rose-600 transition-colors"
+                        title="Remove option"
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddAttrDialogOpen(false)}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

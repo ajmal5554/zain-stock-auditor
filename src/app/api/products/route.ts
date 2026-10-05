@@ -19,6 +19,9 @@ export async function GET(request: Request) {
       where.OR = [
         { brand: { contains: search, mode: "insensitive" } },
         { pattern: { contains: search, mode: "insensitive" } },
+        { fabric: { contains: search, mode: "insensitive" } },
+        { sleeve: { contains: search, mode: "insensitive" } },
+        { notes: { contains: search, mode: "insensitive" } },
         { category: { name: { contains: search, mode: "insensitive" } } },
         {
           variants: {
@@ -54,6 +57,29 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validated = auditEntrySchema.parse(body);
 
+    // Determine effective color & fit:
+    // If user explicitly selected color (e.g. "White", "Navy"), use it.
+    // If not selected, store convention considers it "Color" / "Colored".
+    const effectiveColor = validated.color?.trim() || "Color";
+    const effectiveFit = validated.fit?.trim() || null;
+
+    // Prepare customMeta and enriched notes where fit and color are considered notes
+    const customMetaObj: Record<string, string> = {
+      ...(validated.customMeta || {}),
+      ...(effectiveFit ? { fit: effectiveFit } : {}),
+      color: effectiveColor,
+    };
+
+    const extraTags: string[] = [];
+    if (effectiveFit) extraTags.push(effectiveFit);
+    if (effectiveColor) extraTags.push(effectiveColor);
+
+    let enrichedNotes = validated.notes?.trim() || null;
+    if (extraTags.length > 0) {
+      const prefix = extraTags.join(" • ");
+      enrichedNotes = enrichedNotes ? `${prefix} | ${enrichedNotes}` : prefix;
+    }
+
     // Find existing product style or create new, then upsert each variant atomically
     const product = await prisma.$transaction(async (tx) => {
       let productRecord = await tx.product.findFirst({
@@ -64,25 +90,9 @@ export async function POST(request: Request) {
           fabric: validated.fabric ?? null,
           sleeve: validated.sleeve ?? null,
           mrp: Math.floor(validated.mrp),
+          notes: enrichedNotes ? { equals: enrichedNotes, mode: "insensitive" } : null,
         },
       });
-
-      // Prepare customMeta and enriched notes
-      const customMetaObj = {
-        ...(validated.customMeta || {}),
-        ...(validated.fit ? { fit: validated.fit } : {}),
-        ...(validated.color ? { color: validated.color } : {}),
-      };
-
-      const extraTags: string[] = [];
-      if (validated.fit) extraTags.push(validated.fit);
-      if (validated.color) extraTags.push(validated.color);
-
-      let enrichedNotes = validated.notes?.trim() || null;
-      if (extraTags.length > 0) {
-        const prefix = extraTags.join(" • ");
-        enrichedNotes = enrichedNotes ? `${prefix} | ${enrichedNotes}` : prefix;
-      }
 
       if (!productRecord) {
         productRecord = await tx.product.create({

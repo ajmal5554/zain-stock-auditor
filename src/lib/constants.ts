@@ -92,9 +92,10 @@ export const MUNDU_BORDERS = [
   "Pocket Mundu",
 ];
 
-/** Quick-pick common garment colors */
+/** Quick-pick common garment colors (Defaulting to Color if not White) */
 export const POPULAR_COLORS = [
   "White",
+  "Color",
   "Black",
   "Navy",
   "Sky Blue",

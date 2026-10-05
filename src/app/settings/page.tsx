@@ -28,6 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/toaster";
+import { resolveCategoryAttributes } from "@/lib/store-defaults";
 
 interface Category {
   id: string;
@@ -71,10 +72,10 @@ const STARTER_TEMPLATES: Record<string, { scales: SizeScale[]; attrs: CategoryAt
     ],
     attrs: {
       sleeves: ["Full Sleeve", "Half Sleeve"],
-      collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down"],
+      collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Spread Collar"],
       fits: ["Regular Fit", "Slim Fit"],
-      fabrics: ["Cotton", "Linen", "Cotton Blend"],
-      patterns: ["Plain", "Checks", "Stripes"],
+      fabrics: ["Cotton", "Linen", "Cotton Blend", "Oxford Cotton"],
+      patterns: ["Plain", "Checks", "Stripes", "Printed"],
     },
   },
   tshirt: {
@@ -115,21 +116,58 @@ const STARTER_TEMPLATES: Record<string, { scales: SizeScale[]; attrs: CategoryAt
       { id: "scale_pants_waist", name: "Waist (28 - 42 in)", sizes: ["28", "30", "32", "34", "36", "38", "40", "42"], default: true },
     ],
     attrs: {
-      fits: ["Slim Fit", "Regular Fit", "Relaxed Fit"],
-      fabrics: ["Cotton Chino", "Denim", "Poly-Viscose Formal"],
-      patterns: ["Plain", "Cross Pocket", "Formal Pleated"],
+      fits: ["Slim Fit", "Regular Fit", "Relaxed Fit", "Skinny Fit"],
+      fabrics: ["Cotton Chino", "Denim", "Poly-Viscose Formal", "Cotton Blend"],
+      patterns: ["Plain", "Cross Pocket", "Formal Pleated", "Textured"],
+    },
+  },
+  kurta: {
+    scales: [
+      { id: "scale_kurta_alpha", name: "Standard (S - 3XL)", sizes: ["S", "M", "L", "XL", "XXL", "3XL"], default: true },
+      { id: "scale_kurta_chest", name: "Chest Sizes (36 - 46)", sizes: ["36", "38", "40", "42", "44", "46"] },
+    ],
+    attrs: {
+      sleeves: ["Full Sleeve", "Half Sleeve"],
+      collars: ["Mandarin / Chinese Collar", "Regular Collar", "Collarless"],
+      fits: ["Regular Fit", "Slim Fit", "Long Kurta", "Short Kurta"],
+      fabrics: ["Cotton Handloom", "Linen", "Silk Blend", "Cotton Silk"],
+      patterns: ["Plain", "Self Design", "Embroidery", "Printed"],
+    },
+  },
+  suit: {
+    scales: [
+      { id: "scale_suit_chest", name: "Chest / Jacket (36 - 46)", sizes: ["36", "38", "40", "42", "44", "46"], default: true },
+    ],
+    attrs: {
+      fits: ["Slim Fit", "Regular Fit", "Classic Fit"],
+      fabrics: ["Wool Blend", "Poly-Viscose", "Linen", "Velvet", "Cotton"],
+      patterns: ["Plain / Solid", "Checks", "Textured", "Stripes"],
+      collars: ["Notch Lapel", "Peak Lapel", "Shawl Lapel"],
+    },
+  },
+  accessories: {
+    scales: [
+      { id: "scale_acc_free", name: "Standard / Free Size", sizes: ["Free Size", "Standard"], default: true },
+    ],
+    attrs: {
+      subtypes: ["Belt", "Wallet", "Tie & Bow", "Socks", "Handkerchief", "Cap", "Perfume"],
+      fabrics: ["Leather", "Pure Cotton", "Silk", "Synthetic", "Canvas"],
+      patterns: ["Solid / Plain", "Textured", "Printed"],
     },
   },
 };
 
 function getTemplateKey(catName: string): string {
   const lower = catName.toLowerCase();
+  if (lower.includes("kurta") || lower.includes("traditional") || lower.includes("sherwani")) return "kurta";
+  if (lower.includes("suit") || lower.includes("blazer") || lower.includes("coat")) return "suit";
+  if (lower.includes("access") || lower.includes("belt") || lower.includes("wallet")) return "accessories";
   if (lower.includes("t-shirt") || lower.includes("polo")) return "tshirt";
   if (lower.includes("shirt")) return "shirt";
-  if (lower.includes("innerwear") || lower.includes("undergarment") || lower.includes("brief") || lower.includes("boxer")) return "innerwear";
+  if (lower.includes("innerwear") || lower.includes("undergarment") || lower.includes("brief") || lower.includes("boxer") || lower.includes("vest")) return "innerwear";
   if (lower.includes("mundu") || lower.includes("dhoti") || lower.includes("lungi")) return "mundu";
-  if (lower.includes("pant") || lower.includes("trouser") || lower.includes("jean")) return "pants";
-  return "tshirt";
+  if (lower.includes("pant") || lower.includes("trouser") || lower.includes("jean") || lower.includes("chino")) return "pants";
+  return "shirt";
 }
 
 export default function SettingsPage() {
@@ -194,8 +232,11 @@ export default function SettingsPage() {
         const catData: Category[] = await catRes.json();
         setCategories(catData);
         if (catData.length > 0) {
-          setSelectedScaleCategory((prev) => (prev && catData.some((c) => c.name === prev) ? prev : catData[0].name));
-          setSelectedAttrCategory((prev) => (prev && catData.some((c) => c.name === prev) ? prev : catData[0].name));
+          const preferredDefault =
+            catData.find((c) => c.name === "Shirts" || c.name === "Formal Shirts")?.name ||
+            catData[0].name;
+          setSelectedScaleCategory((prev) => (prev && catData.some((c) => c.name === prev) ? prev : preferredDefault));
+          setSelectedAttrCategory((prev) => (prev && catData.some((c) => c.name === prev) ? prev : preferredDefault));
         }
       }
 
@@ -512,10 +553,8 @@ export default function SettingsPage() {
 
   const handleLoadStarterAttrs = () => {
     if (!selectedAttrCategory) return;
-    const templateKey = getTemplateKey(selectedAttrCategory);
-    const template = STARTER_TEMPLATES[templateKey];
-    if (!template) return;
-    const updated = { ...attributes, [selectedAttrCategory]: template.attrs };
+    const starter = resolveCategoryAttributes(selectedAttrCategory, {});
+    const updated = { ...attributes, [selectedAttrCategory]: starter };
     setAttributes(updated);
     saveAllSettings(undefined, updated);
     toast.success(`Loaded starter attributes for ${selectedAttrCategory}`);
