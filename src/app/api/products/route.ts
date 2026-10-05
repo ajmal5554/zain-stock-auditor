@@ -201,10 +201,31 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, brand, mrp, categoryId, pattern, fabric, sleeve, notes } = body;
+    const { id, brand, mrp, categoryId, pattern, fabric, sleeve, fit, color, userNote, notes } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id },
+      select: { notes: true, customMeta: true },
+    });
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const existingMeta = (existingProduct.customMeta as Record<string, string>) || {};
+    const newMeta: Record<string, string> = { ...existingMeta };
+
+    if (fit !== undefined) {
+      if (fit) newMeta.fit = fit;
+      else delete newMeta.fit;
+    }
+    if (color !== undefined) {
+      if (color) newMeta.color = color;
+      else delete newMeta.color;
     }
 
     const data: Record<string, unknown> = {};
@@ -214,7 +235,26 @@ export async function PATCH(request: Request) {
     if (pattern !== undefined) data.pattern = pattern;
     if (fabric !== undefined) data.fabric = fabric;
     if (sleeve !== undefined) data.sleeve = sleeve;
-    if (notes !== undefined) data.notes = notes;
+
+    // Recalculate notes if fit, color, or userNote was sent
+    if (fit !== undefined || color !== undefined || userNote !== undefined) {
+      const extraTags: string[] = [];
+      if (newMeta.fit) extraTags.push(newMeta.fit);
+      if (newMeta.color) extraTags.push(newMeta.color);
+
+      const noteText = userNote !== undefined ? userNote.trim() : "";
+      let finalNotes: string | null = null;
+      if (extraTags.length > 0) {
+        finalNotes = extraTags.join(" • ");
+        if (noteText) finalNotes += ` | ${noteText}`;
+      } else {
+        finalNotes = noteText || null;
+      }
+      data.notes = finalNotes;
+      data.customMeta = Object.keys(newMeta).length > 0 ? newMeta : undefined;
+    } else if (notes !== undefined) {
+      data.notes = notes;
+    }
 
     const updated = await prisma.product.update({
       where: { id },

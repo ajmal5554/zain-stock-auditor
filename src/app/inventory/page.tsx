@@ -25,7 +25,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
-import { formatINR, PATTERNS, FABRICS, SLEEVES } from "@/lib/constants";
+import { formatINR, PATTERNS, FABRICS, SLEEVES, FITS, POPULAR_COLORS } from "@/lib/constants";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -96,6 +96,8 @@ export default function InventoryPage() {
   const [editFormPattern, setEditFormPattern] = useState<string | null>(null);
   const [editFormFabric, setEditFormFabric] = useState<string | null>(null);
   const [editFormSleeve, setEditFormSleeve] = useState<string | null>(null);
+  const [editFormFit, setEditFormFit] = useState<string | null>(null);
+  const [editFormColor, setEditFormColor] = useState<string | null>(null);
   const [editFormNotes, setEditFormNotes] = useState("");
   const [savingProductEdit, setSavingProductEdit] = useState(false);
 
@@ -263,7 +265,35 @@ export default function InventoryPage() {
     setEditFormPattern(product.pattern);
     setEditFormFabric(product.fabric);
     setEditFormSleeve(product.sleeve);
-    setEditFormNotes(product.notes || "");
+
+    // Extract Fit: from customMeta.fit or regex match from notes
+    const extractedFit =
+      product.customMeta?.fit ||
+      product.notes?.match(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/i)?.[0] ||
+      "Regular Fit";
+    setEditFormFit(extractedFit);
+
+    // Extract Color: from customMeta.color or notes
+    let extractedColor = product.customMeta?.color || null;
+    if (!extractedColor && product.notes) {
+      if (/white/i.test(product.notes)) extractedColor = "White";
+      else if (/color/i.test(product.notes)) extractedColor = "Color";
+    }
+    setEditFormColor(extractedColor || "Color");
+
+    // Extract user notes excluding fit & color prefix
+    let rawNotes = product.notes || "";
+    if (rawNotes.includes("|")) {
+      const parts = rawNotes.split("|");
+      rawNotes = parts.slice(1).join("|").trim();
+    } else {
+      rawNotes = rawNotes
+        .replace(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/gi, "")
+        .replace(/•\s*(White|Color|[a-zA-Z\s]+)/gi, "")
+        .replace(/^[\s•|]+|[\s•|]+$/g, "")
+        .trim();
+    }
+    setEditFormNotes(rawNotes);
   };
 
   // Submit Product Edit
@@ -283,7 +313,9 @@ export default function InventoryPage() {
           pattern: editFormPattern,
           fabric: editFormFabric,
           sleeve: editFormSleeve,
-          notes: editFormNotes.trim() || null,
+          fit: editFormFit,
+          color: editFormColor,
+          userNote: editFormNotes.trim(),
         }),
       });
 
@@ -1071,15 +1103,73 @@ export default function InventoryPage() {
               </div>
             </div>
 
+            {/* Dedicated Fit Style and Color Selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Fit Style</span>
+                  {editFormFit && (
+                    <span className="text-[10px] text-purple-700 font-semibold lowercase">
+                      ({editFormFit})
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={editFormFit || "Regular Fit"}
+                  onChange={(e) => setEditFormFit(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  {FITS.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                  <option value="Relaxed Fit">Relaxed Fit</option>
+                  <option value="Oversized">Oversized</option>
+                  <option value="Classic Fit">Classic Fit</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>Color / Shade</span>
+                  <span className={`text-[10px] font-bold ${
+                    editFormColor?.toLowerCase() === "white" ? "text-slate-700" : "text-emerald-700"
+                  }`}>
+                    ({editFormColor || "Color"})
+                  </span>
+                </label>
+                <select
+                  value={editFormColor || "Color"}
+                  onChange={(e) => setEditFormColor(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
+                >
+                  {POPULAR_COLORS.map((c) => (
+                    <option key={c} value={c}>
+                      {c === "Color" ? "Color (Colored Garment)" : c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-bold text-slate-600 uppercase mb-1 block">
-                Notes / Rack Description
+                Additional Notes / Rack Location (Optional)
               </label>
               <Input
                 value={editFormNotes}
                 onChange={(e) => setEditFormNotes(e.target.value)}
-                placeholder="Rack notes..."
+                placeholder="e.g. Rack A3, Double pocket, Chinese collar..."
+                className="text-xs"
               />
+              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+                <span className="font-semibold text-slate-400">Resulting Notes:</span>
+                <span className="font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                  {[editFormFit || "Regular Fit", editFormColor || "Color"].filter(Boolean).join(" • ")}
+                  {editFormNotes.trim() ? ` | ${editFormNotes.trim()}` : ""}
+                </span>
+              </div>
             </div>
           </div>
 
