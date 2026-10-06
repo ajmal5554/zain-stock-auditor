@@ -40,20 +40,87 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get("category")?.trim();
+    const strict = searchParams.get("strict") === "true";
 
-    // Fetch brands exclusively from Brand table (single source of truth)
+    // 1. Fetch brands from Brand table
     const dbBrands = (await sql`
       SELECT id, name, categories FROM "Brand" ORDER BY name ASC;
     `) as BrandRow[];
 
-    if (categoryParam) {
-      const matched = dbBrands.filter((b) =>
-        matchesCategory(b.categories, categoryParam)
-      );
-      return NextResponse.json(matched, { headers: NO_CACHE_HEADERS });
+    // 2. Fetch distinct brands from Product table to catch any products added during audits
+    const productBrands = (await sql`
+      SELECT DISTINCT brand as name FROM "Product"
+      WHERE brand IS NOT NULL AND TRIM(brand) != '' AND LOWER(brand) NOT IN ('unbranded', 'local');
+    `) as { name: string }[];
+
+    // Merge distinct brands: create a map by lowercase name
+    const brandMap = new Map<string, BrandRow>();
+    for (const b of dbBrands) {
+      if (b.name && b.name.trim()) {
+        brandMap.set(b.name.trim().toLowerCase(), {
+          id: b.id,
+          name: b.name.trim(),
+          categories: Array.isArray(b.categories) ? b.categories : [],
+        });
+      }
     }
 
-    return NextResponse.json(dbBrands, { headers: NO_CACHE_HEADERS });
+    for (const pb of productBrands) {
+      const trimmed = pb.name?.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (!brandMap.has(key)) {
+        brandMap.set(key, {
+          id: "prod_" + key.replace(/[^a-z0-9]/g, "_"),
+          name: trimmed,
+          categories: ["*"],
+        });
+      }
+    }
+
+    const allBrands = Array.from(brandMap.values());
+
+    if (categoryParam) {
+      // Find category-specific brands from Product table as well
+      const catProductBrands = (await sql`
+        SELECT DISTINCT p.brand as name 
+        FROM "Product" p
+        JOIN "Category" c ON p."categoryId" = c.id
+        WHERE (LOWER(c.name) = LOWER(${categoryParam}) OR c.name ILIKE ${'%' + categoryParam + '%'})
+          AND p.brand IS NOT NULL AND TRIM(p.brand) != '';
+      `) as { name: string }[];
+
+      const catProdBrandSet = new Set(
+        catProductBrands.map((cp) => cp.name.trim().toLowerCase())
+      );
+
+      const decorated = allBrands.map((b) => {
+        const isMatched =
+          matchesCategory(b.categories, categoryParam) ||
+          catProdBrandSet.has(b.name.toLowerCase());
+        return {
+          ...b,
+          inCategory: isMatched,
+        };
+      });
+
+      if (strict) {
+        const strictMatches = decorated.filter((b) => b.inCategory);
+        return NextResponse.json(strictMatches, { headers: NO_CACHE_HEADERS });
+      }
+
+      // Prioritize category-matched brands first, followed by all other store brands
+      decorated.sort((a, b) => {
+        if (a.inCategory && !b.inCategory) return -1;
+        if (!a.inCategory && b.inCategory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      return NextResponse.json(decorated, { headers: NO_CACHE_HEADERS });
+    }
+
+    allBrands.sort((a, b) => a.name.localeCompare(b.name));
+    return NextResponse.json(allBrands, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error("Failed to fetch brands:", error);
     return NextResponse.json([], { headers: NO_CACHE_HEADERS });

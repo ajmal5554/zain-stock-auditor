@@ -16,6 +16,7 @@ import {
   Check,
   Sparkles,
   ArrowRight,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { auditEntrySchema, type AuditEntryInput } from "@/lib/schemas";
@@ -88,6 +89,11 @@ export default function AuditPage() {
       categoryId: string;
       brand: string;
       mrp: number;
+      pattern?: string | null;
+      fabric?: string | null;
+      sleeve?: string | null;
+      notes?: string | null;
+      customMeta?: Record<string, any> | null;
       category?: { id: string; name: string };
       variants?: { id?: string; size: string; quantity: number }[];
     }[]
@@ -132,6 +138,7 @@ export default function AuditPage() {
   const [selectedPocket, setSelectedPocket] = useState<string | null>(null);
   const [selectedCustomMeta, setSelectedCustomMeta] = useState<Record<string, string>>({});
   const [customColors, setCustomColors] = useState<string[]>([]);
+  const [storeColors, setStoreColors] = useState<string[]>([]);
 
   // Add Attribute Modal State
   const [isAddAttrDialogOpen, setIsAddAttrDialogOpen] = useState(false);
@@ -198,12 +205,14 @@ export default function AuditPage() {
       })
       .catch(() => toast("Failed to load categories", "error"));
 
-    // Load cached settings
+    // Load cached settings & colors
     try {
       const cachedScales = localStorage.getItem("zain_category_size_scales");
       if (cachedScales) setStoreSizeScales(JSON.parse(cachedScales));
       const cachedAttrs = localStorage.getItem("zain_category_attributes");
       if (cachedAttrs) setStoreAttributes(JSON.parse(cachedAttrs));
+      const cachedColors = localStorage.getItem("zain_store_colors");
+      if (cachedColors) setStoreColors(JSON.parse(cachedColors));
     } catch {}
 
     fetch("/api/settings")
@@ -216,6 +225,15 @@ export default function AuditPage() {
         if (data.attributes && Object.keys(data.attributes).length > 0) {
           setStoreAttributes(data.attributes);
           localStorage.setItem("zain_category_attributes", JSON.stringify(data.attributes));
+        }
+        if (Array.isArray(data.colors) && data.colors.length > 0) {
+          setStoreColors((prev) => {
+            const merged = Array.from(new Set([...prev, ...data.colors]));
+            try {
+              localStorage.setItem("zain_store_colors", JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       })
       .catch(() => {});
@@ -238,14 +256,20 @@ export default function AuditPage() {
       },
     })
       .then((r) => r.json())
-      .then((data: ({ name: string } | string)[]) => {
+      .then((data: ({ name: string; inCategory?: boolean } | string)[]) => {
         if (!Array.isArray(data)) return;
         const brandNames = data.map((b) => (typeof b === "string" ? b : b.name));
-        const sorted = Array.from(new Set(brandNames)).sort((a, b) =>
-          a.localeCompare(b)
-        );
-        setBrands(sorted);
-        setFilteredBrands(sorted);
+        // Keep order returned by API (category-matched first, then all other store brands)
+        const seen = new Set<string>();
+        const orderedBrands: string[] = [];
+        for (const name of brandNames) {
+          if (name && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            orderedBrands.push(name);
+          }
+        }
+        setBrands(orderedBrands);
+        setFilteredBrands(orderedBrands);
       })
       .catch(() => {});
   }, [selectedCategoryName]);
@@ -475,10 +499,103 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     });
   };
 
-  // Attributes for currently selected category — uses store attributes with smart fallbacks
+  // Dynamically harvest attributes from storeProducts (e.g. Satin, Corduroy, Double Pocket, Slim Fit)
+  const harvestedCategoryAttrs = useMemo(() => {
+    const fabrics = new Set<string>();
+    const collars = new Set<string>();
+    const pockets = new Set<string>();
+    const fits = new Set<string>();
+    const patterns = new Set<string>();
+    const subtypes = new Set<string>();
+    const borders = new Set<string>();
+    const customAttrs: Record<string, Set<string>> = {};
+
+    const targetCat = selectedCategoryName?.toLowerCase().trim();
+
+    for (const p of storeProducts) {
+      const pCat = p.category?.name?.toLowerCase().trim() || "";
+      const matchesCat =
+        !targetCat ||
+        pCat === targetCat ||
+        pCat.includes(targetCat.replace(/s\b|&.*$/g, "")) ||
+        targetCat.includes(pCat.replace(/s\b|&.*$/g, ""));
+
+      // Fabrics: all store fabrics or category fabrics
+      if (p.fabric && p.fabric.trim()) fabrics.add(p.fabric.trim());
+      if (p.pattern && p.pattern.trim() && matchesCat) patterns.add(p.pattern.trim());
+
+      if (p.customMeta && typeof p.customMeta === "object") {
+        const m = p.customMeta as Record<string, unknown>;
+        if (typeof m.fabric === "string" && m.fabric.trim()) fabrics.add(m.fabric.trim());
+        if (typeof m.collar === "string" && m.collar.trim() && matchesCat) collars.add(m.collar.trim());
+        if (typeof m.pocket === "string" && m.pocket.trim() && matchesCat) pockets.add(m.pocket.trim());
+        if (typeof m.fit === "string" && m.fit.trim()) fits.add(m.fit.trim());
+        if (typeof m.subtype === "string" && m.subtype.trim() && matchesCat) subtypes.add(m.subtype.trim());
+        if (typeof m.border === "string" && m.border.trim() && matchesCat) borders.add(m.border.trim());
+
+        // Any custom attribute groups (e.g. pocket, wash, rise)
+        for (const [k, v] of Object.entries(m)) {
+          if (
+            k !== "fabric" &&
+            k !== "collar" &&
+            k !== "pocket" &&
+            k !== "fit" &&
+            k !== "subtype" &&
+            k !== "border" &&
+            k !== "color" &&
+            typeof v === "string" &&
+            v.trim()
+          ) {
+            if (!customAttrs[k]) customAttrs[k] = new Set();
+            customAttrs[k].add(v.trim());
+          }
+        }
+      }
+
+      // Check notes for fit (e.g. "Slim Fit • ...")
+      if (p.notes) {
+        const parts = p.notes.split("•").map((s) => s.trim());
+        if (parts.length > 0 && parts[0].toLowerCase().includes("fit")) {
+          fits.add(parts[0]);
+        }
+      }
+    }
+
+    return {
+      fabrics: Array.from(fabrics),
+      collars: Array.from(collars),
+      pockets: Array.from(pockets),
+      fits: Array.from(fits),
+      patterns: Array.from(patterns),
+      subtypes: Array.from(subtypes),
+      borders: Array.from(borders),
+      customAttributes: Object.fromEntries(
+        Object.entries(customAttrs).map(([k, s]) => [k, Array.from(s)])
+      ),
+    };
+  }, [storeProducts, selectedCategoryName]);
+
+  // Attributes for currently selected category — merges store settings, fallbacks, AND harvested product attributes!
   const currentCategoryAttrs = useMemo(() => {
-    return resolveCategoryAttributes(selectedCategoryName, storeAttributes);
-  }, [storeAttributes, selectedCategoryName]);
+    const base = resolveCategoryAttributes(selectedCategoryName, storeAttributes);
+    const customMerged: Record<string, string[]> = { ...(base.customAttributes || {}) };
+
+    for (const [k, vals] of Object.entries(harvestedCategoryAttrs.customAttributes)) {
+      customMerged[k] = Array.from(new Set([...(customMerged[k] || []), ...vals]));
+    }
+
+    return {
+      ...base,
+      subtypes: Array.from(new Set([...(base.subtypes || []), ...harvestedCategoryAttrs.subtypes])),
+      collars: Array.from(new Set([...(base.collars || []), ...harvestedCategoryAttrs.collars])),
+      pockets: Array.from(new Set([...(base.pockets || []), ...harvestedCategoryAttrs.pockets])),
+      fits: Array.from(new Set([...(base.fits || []), ...harvestedCategoryAttrs.fits])),
+      fabrics: Array.from(new Set([...(base.fabrics || []), ...harvestedCategoryAttrs.fabrics])),
+      patterns: Array.from(new Set([...(base.patterns || []), ...harvestedCategoryAttrs.patterns])),
+      borders: Array.from(new Set([...(base.borders || []), ...harvestedCategoryAttrs.borders])),
+      customAttributes: customMerged,
+    };
+  }, [storeAttributes, selectedCategoryName, harvestedCategoryAttrs]);
 
   // Update category and sleeve visibility
   useEffect(() => {
@@ -499,15 +616,25 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     }
   }, [watchedCategoryId, categories, setValue]);
 
-  // Brand autocomplete & suggestions
-  useEffect(() => {
-    if (!watchedBrand || watchedBrand.trim() === "") {
-      setFilteredBrands(brands);
-    } else {
-      const q = watchedBrand.toLowerCase().trim();
-      const filtered = brands.filter((b) => b.toLowerCase().includes(q));
-      setFilteredBrands(filtered);
+  // Brands to display in dropdown:
+  // Shows all store brands when opening dropdown, highlights exact matches,
+  // or filters when actively typing a search query.
+  const dropdownBrands = useMemo(() => {
+    const q = (watchedBrand || "").trim().toLowerCase();
+    if (!q) return brands;
+
+    // Check if what's typed is an exact brand match (e.g. from draft or selection)
+    const isExactMatch = brands.some((b) => b.toLowerCase() === q);
+    if (isExactMatch) {
+      // Show the selected brand first, followed by all other store brands
+      const exact = brands.find((b) => b.toLowerCase() === q)!;
+      const others = brands.filter((b) => b.toLowerCase() !== q);
+      return [exact, ...others];
     }
+
+    // Partial search: matching brands
+    const matches = brands.filter((b) => b.toLowerCase().includes(q));
+    return matches;
   }, [watchedBrand, brands]);
 
   // Sync sizes with react-hook-form
@@ -679,14 +806,28 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     [currentCategoryAttrs, selectedCategoryName, storeAttributes]
   );
 
-  // Add custom color and auto-select
+  // Add custom color, auto-select, and persist to database & localStorage
   const handleAddCustomColor = useCallback(
-    (newColor: string) => {
+    async (newColor: string) => {
       const trimmed = newColor.trim();
       if (!trimmed) return;
       setCustomColors((prev) => Array.from(new Set([...prev, trimmed])));
+      setStoreColors((prev) => {
+        const updated = Array.from(new Set([...prev, trimmed]));
+        try {
+          localStorage.setItem("zain_store_colors", JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
       setValue("color", trimmed);
-      toast(`✓ Color "${trimmed}" selected`, "success");
+      toast(`✓ Color "${trimmed}" selected & saved`, "success");
+
+      // Persist permanently to store settings
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ colors: [trimmed] }),
+      }).catch((e) => console.error("Failed to save color to settings:", e));
     },
     [setValue]
   );
@@ -804,10 +945,45 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     }
   };
 
-  // Combine popular colors with dynamically added colors
+  // Harvest all colors dynamically from storeProducts and recentAudits
+  const harvestedProductColors = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of storeProducts) {
+      if (p.notes) {
+        const parts = p.notes.split("•").map((s) => s.trim());
+        if (parts.length > 1) {
+          const col = parts[1].split("|")[0].trim();
+          if (
+            col &&
+            col.length < 25 &&
+            !col.toLowerCase().includes("sleeve") &&
+            !col.toLowerCase().includes("fit")
+          ) {
+            set.add(col);
+          }
+        }
+      }
+      if (p.customMeta && typeof p.customMeta === "object" && p.customMeta.color) {
+        const c = String(p.customMeta.color).trim();
+        if (c && c.toLowerCase() !== "null" && c.toLowerCase() !== "undefined") {
+          set.add(c);
+        }
+      }
+    }
+    for (const a of recentAudits) {
+      if (a.color && a.color.trim()) {
+        set.add(a.color.trim());
+      }
+    }
+    return Array.from(set);
+  }, [storeProducts, recentAudits]);
+
+  // Combine popular colors with store colors, custom colors, and harvested product colors
   const allColorOptions = useMemo(() => {
-    return Array.from(new Set([...POPULAR_COLORS, ...customColors]));
-  }, [customColors]);
+    return Array.from(
+      new Set([...POPULAR_COLORS, ...storeColors, ...customColors, ...harvestedProductColors])
+    );
+  }, [storeColors, customColors, harvestedProductColors]);
 
   // Clear current draft and form
   const handleClearForm = useCallback(() => {
@@ -1416,15 +1592,22 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
 
           {/* Brand */}
           <section className="bg-white rounded-xl border border-slate-200 p-4">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-              Brand / Company
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                Brand / Company
+              </label>
+              {brands.length > 0 && (
+                <span className="text-[11px] text-slate-400">
+                  {brands.length} store brands
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Controller
                 name="brand"
                 control={control}
                 render={({ field }) => (
-                  <div className="relative">
+                  <div className="relative flex items-center">
                     <Search
                       size={16}
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
@@ -1432,76 +1615,160 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                     <Input
                       {...field}
                       ref={brandInputRef}
-                      placeholder="Search or type brand name..."
-                      className="pl-9 text-sm h-10"
+                      placeholder="Search or select brand..."
+                      className="pl-9 pr-16 text-sm h-10 font-medium"
                       autoComplete="off"
-                      onFocus={() => setShowBrandDropdown(true)}
+                      onClick={() => setShowBrandDropdown(true)}
+                      onFocus={(e) => {
+                        setShowBrandDropdown(true);
+                        e.target.select();
+                      }}
                       onBlur={() => setTimeout(() => setShowBrandDropdown(false), 250)}
                     />
-                    {field.value && (
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                      {field.value && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue("brand", "");
+                            setShowBrandDropdown(true);
+                            brandInputRef.current?.focus();
+                          }}
+                          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors"
+                          title="Clear brand"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setValue("brand", "")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        onClick={() => {
+                          setShowBrandDropdown((prev) => !prev);
+                          if (!showBrandDropdown) {
+                            brandInputRef.current?.focus();
+                          }
+                        }}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+                          showBrandDropdown
+                            ? "bg-indigo-50 text-indigo-600"
+                            : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title="Open brands dropdown"
                       >
-                        <X size={14} />
+                        <ChevronDown
+                          size={15}
+                          className={`transition-transform duration-200 ${
+                            showBrandDropdown ? "rotate-180" : ""
+                          }`}
+                        />
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               />
 
               {/* Dropdown */}
               {showBrandDropdown && (
-                <div className="absolute z-30 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto animate-slide-up">
+                <div className="absolute z-30 top-full mt-1.5 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto animate-slide-up divide-y divide-slate-100">
+                  <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-100">
+                    <span className="flex items-center gap-1 font-bold text-slate-700">
+                      Store Brands ({brands.length})
+                    </span>
+                    <span>{selectedCategoryName ? `${selectedCategoryName} & All` : "All Brands"}</span>
+                  </div>
+
+                  {/* If user typed a custom brand not in store, offer to add it */}
                   {watchedBrand &&
                     !brands.some((b) => b.toLowerCase() === watchedBrand.toLowerCase().trim()) && (
                       <button
                         type="button"
-                        className="w-full px-3 py-2 text-left text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors flex items-center gap-1.5"
+                        className="w-full px-3 py-2.5 text-left text-xs font-semibold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 transition-colors flex items-center justify-between"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           rememberBrand(watchedBrand);
                           setShowBrandDropdown(false);
                         }}
                       >
-                        <Plus size={13} />
-                        Add &quot;{watchedBrand}&quot;
+                        <span className="flex items-center gap-1.5">
+                          <Plus size={14} />
+                          Add &quot;{watchedBrand.trim()}&quot; to store brands
+                        </span>
+                        <span className="text-[10px] text-indigo-500 font-bold bg-white px-2 py-0.5 rounded border border-indigo-200">
+                          + Add Brand
+                        </span>
                       </button>
                     )}
-                  {filteredBrands.slice(0, 12).map((b) => (
+
+                  {dropdownBrands.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-xs text-slate-400">
+                      No brand matching &quot;{watchedBrand}&quot;. Click &quot;Add&quot; above to create it.
+                    </div>
+                  ) : (
+                    dropdownBrands.map((b) => {
+                      const isSelected =
+                        watchedBrand && watchedBrand.toLowerCase().trim() === b.toLowerCase().trim();
+                      return (
+                        <button
+                          key={b}
+                          type="button"
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition-colors ${
+                            isSelected
+                              ? "bg-indigo-50/80 text-indigo-900 font-bold"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setValue("brand", b, { shouldValidate: true, shouldDirty: true });
+                            setShowBrandDropdown(false);
+                          }}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{b}</span>
+                            {isSelected && (
+                              <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-100 px-1.5 py-0.5 rounded">
+                                Selected
+                              </span>
+                            )}
+                          </span>
+                          {isSelected && <Check size={14} className="text-indigo-600" />}
+                        </button>
+                      );
+                    })
+                  )}
+
+                  {/* If search filtered the list, option to view all brands */}
+                  {Boolean(watchedBrand && dropdownBrands.length < brands.length) && (
                     <button
-                      key={b}
                       type="button"
-                      className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="w-full px-3 py-2 text-center text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors bg-slate-50/50"
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        setValue("brand", b);
-                        setShowBrandDropdown(false);
+                        setValue("brand", "");
+                        brandInputRef.current?.focus();
                       }}
                     >
-                      {b}
+                      View all {brands.length} store brands →
                     </button>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
 
             {/* Quick brand chips */}
             {brands.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-none pb-0.5">
-                {brands.slice(0, 8).map((b) => (
+              <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto scrollbar-none pb-0.5">
+                {brands.slice(0, 16).map((b) => (
                   <button
                     key={b}
                     type="button"
                     onClick={() => {
-                      setValue("brand", b);
+                      setValue("brand", b, { shouldValidate: true, shouldDirty: true });
                       setShowBrandDropdown(false);
                     }}
                     className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
-                      watchedBrand === b
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                      watchedBrand && watchedBrand.toLowerCase().trim() === b.toLowerCase().trim()
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                   >
                     {b}
