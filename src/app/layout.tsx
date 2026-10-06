@@ -1,15 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-import { DesktopSidebar } from "@/components/desktop-sidebar";
+import { AppShell } from "@/components/app-shell";
 import { BottomNav } from "@/components/bottom-nav";
 import { Toaster } from "@/components/toaster";
 import { OfflineBanner } from "@/components/offline-banner";
 import { PwaInstaller } from "@/components/pwa-installer";
 
-const inter = Inter({
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -44,14 +53,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} font-sans antialiased bg-[#f8f9fb] text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
+        className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased bg-[#f8f9fb] text-slate-900 min-h-dvh selection:bg-indigo-100 selection:text-indigo-900`}
       >
         <PwaInstaller />
         <OfflineBanner />
-        <DesktopSidebar />
-        <main className="pb-20 md:pb-8 md:pl-60 min-h-screen">
-          {children}
-        </main>
+        <AppShell>{children}</AppShell>
         <BottomNav />
         <Toaster />
       </body>

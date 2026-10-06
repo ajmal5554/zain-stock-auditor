@@ -1236,160 +1236,183 @@ export default function InventoryPage() {
         </Card>
       </div>
 
-      {/* ── Search & Filter Controls with View Mode Switcher ── */}
-      <div className="space-y-3 mb-5">
-        <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
-          <div className="flex flex-1 flex-wrap sm:flex-nowrap items-center gap-2">
-            {/* Search Input */}
-            <div className="flex-1 min-w-[200px] relative">
-              <Search
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search brand, category, style, notes..."
-                className="pl-10 text-xs h-10 bg-white"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* Category Dropdown */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Sort Options Dropdown */}
-            <div className="relative shrink-0">
-              <select
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as any)}
-                className="h-10 pl-8 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 appearance-none cursor-pointer"
-                title="Sort inventory by"
-              >
-                <option value="created-desc">🕒 Latest Added (Newest First)</option>
-                <option value="created-asc">🕒 Oldest Added First</option>
-                <option value="updated-desc">🔄 Recently Scanned / Updated</option>
-                <option value="brand-asc">🔤 Brand: A to Z</option>
-                <option value="brand-desc">🔤 Brand: Z to A</option>
-                <option value="mrp-desc">💰 Price: High to Low</option>
-                <option value="mrp-asc">💰 Price: Low to High</option>
-                <option value="qty-desc">📦 Total Pcs: High to Low</option>
-                <option value="qty-asc">📦 Total Pcs: Low to High</option>
-              </select>
-              <ArrowUpDown
-                size={14}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-              />
-            </div>
-
-            {/* Advanced Filters Toggle Button */}
-            <Button
-              type="button"
-              variant={showFilters || activeFilterCount > 0 ? "secondary" : "outline"}
-              onClick={() => setShowFilters(!showFilters)}
-              className={`h-10 gap-1.5 text-xs font-bold shrink-0 ${
-                activeFilterCount > 0 ? "border-indigo-300 text-indigo-700 bg-indigo-50/70" : ""
+      {/* ── View Perspective & Display Mode Bar ── */}
+      <div className="bg-white rounded-2xl p-2.5 sm:p-3 border border-slate-200/80 shadow-xs mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Left: Prominent Segmented Grouping Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => handleGroupByChange("style")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              groupBy === "style"
+                ? "bg-white text-indigo-700 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 font-semibold"
+            }`}
+            title="Compiled Style View: Combines all sizes under each garment style into one row with total pcs"
+          >
+            <Package size={15} />
+            <span>Compiled (By Style)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                groupBy === "style"
+                  ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                  : "bg-slate-200/80 text-slate-600"
               }`}
             >
-              <SlidersHorizontal size={14} />
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-black">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
+              {filteredStyles}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleGroupByChange("size")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              groupBy === "size"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 font-semibold"
+            }`}
+            title="Separate Size View: Shows each individual size separately in order of last scanned"
+          >
+            <Tags size={15} />
+            <span>Separate (By Size)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                groupBy === "size"
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-200/80 text-slate-600"
+              }`}
+            >
+              {sortedFlatSizeItems.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Right: Summary info & Desktop View Switcher */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 px-1">
+          <div className="text-xs text-slate-500 font-medium">
+            <span className="font-bold text-slate-800">
+              {groupBy === "size"
+                ? `${sortedFlatSizeItems.length} size entries`
+                : `${filteredStyles} garment styles`}
+            </span>
+            <span className="text-slate-400 mx-1.5">•</span>
+            <span className="text-slate-600 font-semibold">
+              {filteredPcs.toLocaleString("en-IN")} pcs
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Display Mode Switcher (Compiled Style vs Separate by Size) */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-              <button
-                type="button"
-                onClick={() => handleGroupByChange("style")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
-                  groupBy === "style"
-                    ? "bg-white text-indigo-700 shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
-                }`}
-                title="Compiled View: All sizes compiled into one style row"
-              >
-                <Package size={14} />
-                <span>Compiled (Style)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleGroupByChange("size")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
-                  groupBy === "size"
-                    ? "bg-indigo-600 text-white shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
-                }`}
-                title="Separate View: Each size shown individually in order of last scanned"
-              >
-                <Tags size={14} />
-                <span>Separate (By Size)</span>
-                {sortedFlatSizeItems.length > 0 && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                      groupBy === "size"
-                        ? "bg-white/20 text-white"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {sortedFlatSizeItems.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Desktop View Switcher */}
-            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  viewMode === "table"
-                    ? "bg-white text-indigo-700 shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <List size={14} />
-                <span>Table View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("cards")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  viewMode === "cards"
-                    ? "bg-white text-indigo-700 shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <LayoutGrid size={14} />
-                <span>Cards View</span>
-              </button>
-            </div>
+          <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "table"
+                  ? "bg-white text-indigo-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              title="Table View"
+            >
+              <List size={14} />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "cards"
+                  ? "bg-white text-indigo-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              title="Cards View"
+            >
+              <LayoutGrid size={14} />
+              <span>Cards</span>
+            </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── Search & Filter Controls Toolbar ── */}
+      <div className="space-y-3 mb-5">
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+          {/* Search Input */}
+          <div className="flex-1 min-w-[200px] relative">
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search brand, category, style, notes..."
+              className="pl-10 text-xs h-10 bg-white"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Category Dropdown */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0"
+          >
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Sort Options Dropdown */}
+          <div className="relative shrink-0">
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as any)}
+              className="h-10 pl-8 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 appearance-none cursor-pointer"
+              title="Sort inventory by"
+            >
+              <option value="created-desc">🕒 Latest Added (Newest First)</option>
+              <option value="created-asc">🕒 Oldest Added First</option>
+              <option value="updated-desc">🔄 Recently Scanned / Updated</option>
+              <option value="brand-asc">🔤 Brand: A to Z</option>
+              <option value="brand-desc">🔤 Brand: Z to A</option>
+              <option value="mrp-desc">💰 Price: High to Low</option>
+              <option value="mrp-asc">💰 Price: Low to High</option>
+              <option value="qty-desc">📦 Total Pcs: High to Low</option>
+              <option value="qty-asc">📦 Total Pcs: Low to High</option>
+            </select>
+            <ArrowUpDown
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+            />
+          </div>
+
+          {/* Advanced Filters Toggle Button */}
+          <Button
+            type="button"
+            variant={showFilters || activeFilterCount > 0 ? "secondary" : "outline"}
+            onClick={() => setShowFilters(!showFilters)}
+            className={`h-10 gap-1.5 text-xs font-bold shrink-0 ${
+              activeFilterCount > 0 ? "border-indigo-300 text-indigo-700 bg-indigo-50/70" : ""
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-black">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
 
         {/* ── Expandable Filter Drawer Panel ── */}
