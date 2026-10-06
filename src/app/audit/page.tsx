@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -14,6 +15,7 @@ import {
   Clock,
   Check,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import { auditEntrySchema, type AuditEntryInput } from "@/lib/schemas";
@@ -70,6 +72,7 @@ interface RecentAuditItem {
   fit?: string | null;
   color?: string | null;
   time: string;
+  variants?: { size: string; quantity: number }[];
 }
 
 export default function AuditPage() {
@@ -974,6 +977,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         fit: effectiveFit,
         color: effectiveColor,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        variants: data.variants.filter((v) => v.quantity > 0),
       };
 
       setLastSavedStyle(newAuditItem);
@@ -2119,29 +2123,64 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             )}
           </div>
 
-          {/* Recent scans — compact */}
+          {/* Recent scans — compact with exact size breakdown */}
           {recentAudits.length > 0 && (
-            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
               <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                  <Clock size={13} />
-                  Recent
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <Clock size={13} className="text-indigo-600" />
+                  <span>Recently Audited</span>
                 </div>
-                <span className="text-[10px] text-slate-400">{recentAudits.length} logged</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400">{recentAudits.length} logged</span>
+                  <Link
+                    href="/inventory?group=size&sort=updated-desc"
+                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:underline"
+                    title="View all individual sizes in inventory in order of last scanned"
+                  >
+                    <span>View by Size</span>
+                    <ArrowRight size={11} />
+                  </Link>
+                </div>
               </div>
               <div className="divide-y divide-slate-100">
                 {recentAudits.map((item) => (
-                  <div key={item.id} className="px-4 py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-semibold text-slate-800">{item.brand}</span>
-                      <span className="text-slate-400 ml-1.5">{item.category}</span>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        ₹{item.mrp.toLocaleString("en-IN")} • {item.time}
+                  <div key={item.id} className="px-4 py-2.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-800 truncate">{item.brand}</span>
+                          <span className="text-slate-400 text-[11px]">({item.category})</span>
+                          <span className="text-slate-500 font-semibold text-[11px]">
+                            ₹{item.mrp.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+                          <span>{item.time}</span>
+                          {item.fit && <span>• {item.fit}</span>}
+                          {item.color && <span>• {item.color}</span>}
+                        </div>
                       </div>
+                      <Badge variant="success" className="text-[11px] py-0.5 px-2 font-black shrink-0">
+                        {item.pieces} pcs
+                      </Badge>
                     </div>
-                    <Badge variant="success" className="text-[11px] py-0 px-2 font-semibold">
-                      {item.pieces}
-                    </Badge>
+
+                    {/* Exact sizes recorded in this scan */}
+                    {item.variants && item.variants.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-1.5 border-t border-slate-50">
+                        <span className="text-[10px] text-slate-400 font-medium">Sizes:</span>
+                        {item.variants.map((v) => (
+                          <span
+                            key={v.size}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-[11px] font-bold text-indigo-900"
+                          >
+                            <span>{v.size}:</span>
+                            <span className="font-extrabold text-indigo-700">{v.quantity}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

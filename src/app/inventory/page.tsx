@@ -27,6 +27,9 @@ import {
   Filter,
   ArrowUpDown,
   RotateCcw,
+  Tags,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "@/components/toaster";
 import {
@@ -91,6 +94,30 @@ interface Product {
   updatedAt: string;
 }
 
+function formatTimestamp(dateStr?: string) {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "—";
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24 && date.getDate() === now.getDate()) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    " " +
+    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -99,6 +126,30 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [groupBy, setGroupBy] = useState<"style" | "size">("style");
+
+  // Read group preference from URL or localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const g = params.get("group") || params.get("view_by");
+      if (g === "size" || g === "style") {
+        setGroupBy(g);
+      } else {
+        const saved = localStorage.getItem("zain_inventory_group_by");
+        if (saved === "size" || saved === "style") {
+          setGroupBy(saved as "style" | "size");
+        }
+      }
+    }
+  }, []);
+
+  const handleGroupByChange = (mode: "style" | "size") => {
+    setGroupBy(mode);
+    try {
+      localStorage.setItem("zain_inventory_group_by", mode);
+    } catch {}
+  };
 
   // Expanded Filter & Sort States
   const [sortOption, setSortOption] = useState<
@@ -327,6 +378,93 @@ export default function InventoryPage() {
       return 0;
     });
     return list;
+  }, [filteredProducts, sortOption]);
+
+  // Flattened list of individual sizes (Separate / Uncompiled View)
+  const sortedFlatSizeItems = useMemo(() => {
+    const flatItems: {
+      id: string;
+      productId: string;
+      variantId: string;
+      product: Product;
+      brand: string;
+      category: Category;
+      pattern: string | null;
+      fabric: string | null;
+      sleeve: string | null;
+      mrp: number;
+      notes: string | null;
+      customMeta?: Record<string, string> | null;
+      size: string;
+      quantity: number;
+      valuation: number;
+      updatedAt: string;
+      createdAt: string;
+    }[] = [];
+
+    for (const p of filteredProducts) {
+      for (const v of p.variants) {
+        flatItems.push({
+          id: `${p.id}-${v.id}`,
+          productId: p.id,
+          variantId: v.id,
+          product: p,
+          brand: p.brand,
+          category: p.category,
+          pattern: p.pattern,
+          fabric: p.fabric,
+          sleeve: p.sleeve,
+          mrp: p.mrp,
+          notes: p.notes,
+          customMeta: p.customMeta,
+          size: v.size,
+          quantity: v.quantity,
+          valuation: p.mrp * v.quantity,
+          updatedAt: v.updatedAt || p.updatedAt,
+          createdAt: p.createdAt,
+        });
+      }
+    }
+
+    // Sort flattened size items
+    flatItems.sort((a, b) => {
+      if (sortOption === "created-desc") {
+        const aDate = new Date(a.updatedAt || a.createdAt).getTime();
+        const bDate = new Date(b.updatedAt || b.createdAt).getTime();
+        return bDate - aDate;
+      }
+      if (sortOption === "created-asc") {
+        const aDate = new Date(a.createdAt).getTime();
+        const bDate = new Date(b.createdAt).getTime();
+        return aDate - bDate;
+      }
+      if (sortOption === "updated-desc") {
+        const aDate = new Date(a.updatedAt).getTime();
+        const bDate = new Date(b.updatedAt).getTime();
+        return bDate - aDate;
+      }
+      if (sortOption === "brand-asc") {
+        return a.brand.localeCompare(b.brand);
+      }
+      if (sortOption === "brand-desc") {
+        return b.brand.localeCompare(a.brand);
+      }
+      if (sortOption === "mrp-desc") {
+        return b.mrp - a.mrp;
+      }
+      if (sortOption === "mrp-asc") {
+        return a.mrp - b.mrp;
+      }
+      if (sortOption === "qty-desc") {
+        return b.quantity - a.quantity;
+      }
+      if (sortOption === "qty-asc") {
+        return a.quantity - b.quantity;
+      }
+      return 0;
+    });
+
+    return flatItems;
   }, [filteredProducts, sortOption]);
 
   const toggleExpand = (id: string) => {
@@ -842,6 +980,145 @@ export default function InventoryPage() {
     );
   };
 
+  // Render individual size card (Separate / Uncompiled view)
+  const renderSizeCard = (item: (typeof sortedFlatSizeItems)[0], index: number) => {
+    return (
+      <Card
+        key={item.id}
+        className={`p-4 bg-white border transition-all ${
+          index === 0
+            ? "border-emerald-300 ring-1 ring-emerald-200 shadow-sm"
+            : "border-slate-200 shadow-2xs hover:shadow-sm"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+              <Badge variant="default" className="text-[10px] py-0 font-medium">
+                {item.category.name}
+              </Badge>
+              {index === 0 && (
+                <Badge variant="success" className="text-[10px] py-0 px-1.5 font-bold bg-emerald-100 text-emerald-800 border-emerald-200">
+                  ★ Added Last
+                </Badge>
+              )}
+              {item.customMeta?.subtype && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
+                  {item.customMeta.subtype}
+                </Badge>
+              )}
+              {item.customMeta?.collar && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-blue-50 text-blue-700 border-blue-200">
+                  {item.customMeta.collar}
+                </Badge>
+              )}
+              {item.customMeta?.pocket && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-teal-50 text-teal-700 border-teal-200">
+                  {item.customMeta.pocket}
+                </Badge>
+              )}
+              {item.pattern && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-medium">
+                  {item.pattern}
+                </Badge>
+              )}
+              {item.fabric && (
+                <Badge variant="outline" className="text-[10px] py-0 font-medium">
+                  {item.fabric}
+                </Badge>
+              )}
+              {item.sleeve && (
+                <Badge variant="outline" className="text-[10px] py-0 font-medium">
+                  {item.sleeve}
+                </Badge>
+              )}
+              {(item.customMeta?.fit || item.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
+                <Badge variant="subtle" className="text-[10px] py-0 font-semibold bg-purple-50 text-purple-700 border-purple-200">
+                  {item.customMeta?.fit || item.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
+                </Badge>
+              )}
+              {(item.customMeta?.color || item.notes) && (
+                <Badge
+                  variant="subtle"
+                  className={`text-[10px] py-0 font-bold ${
+                    (item.customMeta?.color?.toLowerCase() === "white" || item.notes?.toLowerCase().includes("white"))
+                      ? "bg-slate-100 text-slate-800 border-slate-300"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}
+                >
+                  {item.customMeta?.color || (item.notes?.toLowerCase().includes("white") ? "White" : "Color")}
+                </Badge>
+              )}
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 truncate">{item.brand}</h3>
+            {item.notes && (
+              <p className="text-[11px] text-slate-400 italic truncate mt-0.5">📍 {item.notes}</p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => openEditProduct(item.product)}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title="Edit Garment"
+            >
+              <Edit size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeleteVariant(item.productId, item.variantId, item.size)}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              title="Delete this size"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Size & Quantity Control Row */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">Size:</span>
+            <span className="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-black text-sm">
+              {item.size}
+            </span>
+            <div className="flex items-center gap-1 ml-2 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => adjustVariantQuick(item.productId, item.variantId, -1)}
+                disabled={item.quantity <= 0}
+                className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
+              >
+                <Minus size={11} />
+              </button>
+              <span className="font-extrabold text-sm text-slate-900 px-1.5 min-w-[20px] text-center">
+                {item.quantity}
+              </span>
+              <button
+                type="button"
+                onClick={() => adjustVariantQuick(item.productId, item.variantId, 1)}
+                className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
+              >
+                <Plus size={11} />
+              </button>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">pcs</span>
+          </div>
+
+          <div className="text-right">
+            <div className="text-xs font-black text-emerald-700">
+              {formatINR(item.valuation)}
+            </div>
+            <div className="text-[10px] text-slate-400">
+              ₹{item.mrp} each • {formatTimestamp(item.updatedAt)}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28 md:pb-16">
       {/* ── Responsive Header ── */}
@@ -928,14 +1205,16 @@ export default function InventoryPage() {
 
         <Card className="p-4 bg-purple-50/70 border-purple-100 flex items-center gap-3.5 shadow-xs">
           <div className="w-11 h-11 rounded-2xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
-            <Layers size={20} />
+            {groupBy === "size" ? <Tags size={20} /> : <Layers size={20} />}
           </div>
           <div>
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {filteredStyles}
+              {groupBy === "size" ? sortedFlatSizeItems.length : filteredStyles}
             </div>
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-              {activeFilterCount > 0 || search || categoryFilter
+              {groupBy === "size"
+                ? "Individual Size Entries"
+                : activeFilterCount > 0 || search || categoryFilter
                 ? `Styles Shown (${uniqueStyles} total)`
                 : "Garment Styles / SKUs"}
             </div>
@@ -1041,32 +1320,75 @@ export default function InventoryPage() {
             </Button>
           </div>
 
-          {/* Desktop View Switcher */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === "table"
-                  ? "bg-white text-indigo-700 shadow-xs font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <List size={14} />
-              <span>Table View</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === "cards"
-                  ? "bg-white text-indigo-700 shadow-xs font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LayoutGrid size={14} />
-              <span>Cards View</span>
-            </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Display Mode Switcher (Compiled Style vs Separate by Size) */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleGroupByChange("style")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
+                  groupBy === "style"
+                    ? "bg-white text-indigo-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900 font-medium"
+                }`}
+                title="Compiled View: All sizes compiled into one style row"
+              >
+                <Package size={14} />
+                <span>Compiled (Style)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGroupByChange("size")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
+                  groupBy === "size"
+                    ? "bg-indigo-600 text-white shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900 font-medium"
+                }`}
+                title="Separate View: Each size shown individually in order of last scanned"
+              >
+                <Tags size={14} />
+                <span>Separate (By Size)</span>
+                {sortedFlatSizeItems.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      groupBy === "size"
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {sortedFlatSizeItems.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Desktop View Switcher */}
+            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === "table"
+                    ? "bg-white text-indigo-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <List size={14} />
+                <span>Table View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === "cards"
+                    ? "bg-white text-indigo-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <LayoutGrid size={14} />
+                <span>Cards View</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1424,7 +1746,9 @@ export default function InventoryPage() {
         <>
           {/* Mobile Product Cards (always visible on phone) */}
           <div className="space-y-3 md:hidden">
-            {sortedProducts.map((product) => renderProductCard(product))}
+            {groupBy === "size"
+              ? sortedFlatSizeItems.map((item, idx) => renderSizeCard(item, idx))
+              : sortedProducts.map((product) => renderProductCard(product))}
           </div>
 
           {/* Desktop Product Views */}
@@ -1432,162 +1756,341 @@ export default function InventoryPage() {
             {viewMode === "table" ? (
               <Card className="overflow-hidden border-slate-200 bg-white shadow-xs">
                 <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-slate-50 border-b border-slate-200">
-                      <TableRow>
-                        <TableHead className="font-bold text-slate-700 text-xs py-3.5 pl-4">Garment / Brand</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs">Category</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs">Attributes</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs text-right">MRP</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs min-w-[280px]">Sizes in Stock (Quick Adjust)</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs text-center">Total Pcs</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs text-right">Valuation</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-xs text-right pr-4">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedProducts.map((product) => {
-                        const totalQty = product.variants.reduce((s, v) => s + v.quantity, 0);
-                        const valuation = totalQty * product.mrp;
-                        return (
-                          <TableRow key={product.id} className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors">
-                            <TableCell className="py-3.5 pl-4 font-semibold text-slate-900">
-                              <div className="font-bold text-slate-900">{product.brand}</div>
-                              {product.notes && (
-                                <div className="text-[11px] text-slate-400 font-normal italic truncate max-w-[200px]">
-                                  {product.notes}
+                  {groupBy === "size" ? (
+                    <Table>
+                      <TableHeader className="bg-slate-50 border-b border-slate-200">
+                        <TableRow>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3.5 pl-4">Garment / Brand</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs">Category</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs">Attributes</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right">MRP</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-center">Size</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-center">Quantity (Quick Adjust)</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right">Size Valuation</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs min-w-[140px]">Last Scanned / Added</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right pr-4">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sortedFlatSizeItems.map((item, idx) => {
+                          const isLatest = idx === 0 && (sortOption === "created-desc" || sortOption === "updated-desc");
+                          return (
+                            <TableRow
+                              key={item.id}
+                              className={`border-b transition-colors ${
+                                isLatest
+                                  ? "bg-emerald-50/50 hover:bg-emerald-50/80 border-emerald-200"
+                                  : "hover:bg-slate-50/70 border-slate-100"
+                              }`}
+                            >
+                              <TableCell className="py-3.5 pl-4 font-semibold text-slate-900">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900">{item.brand}</span>
+                                  {isLatest && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                      ★ Added Last
+                                    </span>
+                                  )}
                                 </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="font-semibold text-[11px] px-2 py-0.5">
-                                {product.category.name}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1 max-w-[220px]">
-                                {product.customMeta?.subtype && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
-                                    {product.customMeta.subtype}
-                                  </span>
-                                )}
-                                {product.customMeta?.collar && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-[10px] font-semibold text-blue-700 border border-blue-100">
-                                    {product.customMeta.collar}
-                                  </span>
-                                )}
-                                {product.customMeta?.border && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-[10px] font-semibold text-amber-700 border border-amber-100">
-                                    {product.customMeta.border}
-                                  </span>
-                                )}
-                                {product.pattern && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
-                                    {product.pattern}
-                                  </span>
-                                )}
-                                {product.fabric && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
-                                    {product.fabric}
-                                  </span>
-                                )}
-                                {product.sleeve && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
-                                    {product.sleeve}
-                                  </span>
-                                )}
-                                {(product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
-                                  <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-[10px] font-semibold text-purple-700 border border-purple-100">
-                                    {product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
-                                  </span>
-                                )}
-                                {(product.customMeta?.color || product.notes) && (
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                                    (product.customMeta?.color?.toLowerCase() === "white" || product.notes?.toLowerCase().includes("white"))
-                                      ? "bg-slate-100 text-slate-800 border-slate-300"
-                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  }`}>
-                                    {product.customMeta?.color || (product.notes?.toLowerCase().includes("white") ? "White" : "Color")}
-                                  </span>
-                                )}
-                                {!product.pattern && !product.fabric && !product.sleeve && !product.customMeta && !product.notes && (
-                                  <span className="text-slate-400 text-xs">—</span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-slate-900">
-                              ₹{product.mrp.toLocaleString("en-IN")}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {product.variants.map((v) => (
-                                  <div
-                                    key={v.id}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-xs group"
-                                  >
-                                    <span className="font-bold text-slate-700">{v.size}:</span>
-                                    <span className="font-extrabold text-slate-900">{v.quantity}</span>
-                                    <div className="flex items-center ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        type="button"
-                                        onClick={() => adjustVariantQuick(product.id, v.id, -1)}
-                                        disabled={v.quantity <= 0}
-                                        className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
-                                        title="Decrease 1"
-                                      >
-                                        <Minus size={10} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => adjustVariantQuick(product.id, v.id, 1)}
-                                        className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
-                                        title="Increase 1"
-                                      >
-                                        <Plus size={10} />
-                                      </button>
-                                    </div>
+                                {item.notes && (
+                                  <div className="text-[11px] text-slate-400 font-normal italic truncate max-w-[200px] mt-0.5">
+                                    {item.notes}
                                   </div>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <span className="inline-block px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs">
-                                {totalQty}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right font-black text-emerald-700 text-xs">
-                              {formatINR(valuation)}
-                            </TableCell>
-                            <TableCell className="text-right pr-4">
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditProduct(product)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                  title="Edit Garment"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeletingProduct(product)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                  title="Delete Product"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="font-semibold text-[11px] px-2 py-0.5">
+                                  {item.category.name}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                  {item.customMeta?.subtype && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
+                                      {item.customMeta.subtype}
+                                    </span>
+                                  )}
+                                  {item.customMeta?.collar && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-[10px] font-semibold text-blue-700 border border-blue-100">
+                                      {item.customMeta.collar}
+                                    </span>
+                                  )}
+                                  {item.customMeta?.pocket && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-teal-50 text-[10px] font-semibold text-teal-700 border border-teal-100">
+                                      {item.customMeta.pocket}
+                                    </span>
+                                  )}
+                                  {item.customMeta?.border && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-[10px] font-semibold text-amber-700 border border-amber-100">
+                                      {item.customMeta.border}
+                                    </span>
+                                  )}
+                                  {item.pattern && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {item.pattern}
+                                    </span>
+                                  )}
+                                  {item.fabric && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {item.fabric}
+                                    </span>
+                                  )}
+                                  {item.sleeve && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {item.sleeve}
+                                    </span>
+                                  )}
+                                  {(item.customMeta?.fit || item.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-[10px] font-semibold text-purple-700 border border-purple-100">
+                                      {item.customMeta?.fit || item.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
+                                    </span>
+                                  )}
+                                  {(item.customMeta?.color || item.notes) && (
+                                    <span
+                                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                        item.customMeta?.color?.toLowerCase() === "white" ||
+                                        item.notes?.toLowerCase().includes("white")
+                                          ? "bg-slate-100 text-slate-800 border-slate-300"
+                                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      }`}
+                                    >
+                                      {item.customMeta?.color ||
+                                        (item.notes?.toLowerCase().includes("white") ? "White" : "Color")}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-slate-900">
+                                ₹{item.mrp.toLocaleString("en-IN")}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="inline-block px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 font-black text-xs tracking-wide">
+                                  {item.size}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-lg">
+                                  <button
+                                    type="button"
+                                    onClick={() => adjustVariantQuick(item.productId, item.variantId, -1)}
+                                    disabled={item.quantity <= 0}
+                                    className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
+                                    title="Decrease 1"
+                                  >
+                                    <Minus size={11} />
+                                  </button>
+                                  <span className="font-black text-slate-900 text-xs min-w-[24px] text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => adjustVariantQuick(item.productId, item.variantId, 1)}
+                                    className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
+                                    title="Increase 1"
+                                  >
+                                    <Plus size={11} />
+                                  </button>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-black text-emerald-700 text-xs">
+                                {formatINR(item.valuation)}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-500 font-medium">
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <Clock size={12} className="text-slate-400" />
+                                  <span>{formatTimestamp(item.updatedAt)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right pr-4">
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditProduct(item.product)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                    title="Edit Style Details"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteVariant(item.productId, item.variantId, item.size)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                    title="Delete this size variant"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Table>
+                      <TableHeader className="bg-slate-50 border-b border-slate-200">
+                        <TableRow>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3.5 pl-4">Garment / Brand</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs">Category</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs">Attributes</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right">MRP</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs min-w-[280px]">Sizes in Stock (Quick Adjust)</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-center">Total Pcs</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right">Valuation</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs text-right pr-4">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sortedProducts.map((product) => {
+                          const totalQty = product.variants.reduce((s, v) => s + v.quantity, 0);
+                          const valuation = totalQty * product.mrp;
+                          return (
+                            <TableRow key={product.id} className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors">
+                              <TableCell className="py-3.5 pl-4 font-semibold text-slate-900">
+                                <div className="font-bold text-slate-900">{product.brand}</div>
+                                {product.notes && (
+                                  <div className="text-[11px] text-slate-400 font-normal italic truncate max-w-[200px]">
+                                    {product.notes}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="font-semibold text-[11px] px-2 py-0.5">
+                                  {product.category.name}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                  {product.customMeta?.subtype && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
+                                      {product.customMeta.subtype}
+                                    </span>
+                                  )}
+                                  {product.customMeta?.collar && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-[10px] font-semibold text-blue-700 border border-blue-100">
+                                      {product.customMeta.collar}
+                                    </span>
+                                  )}
+                                  {product.customMeta?.pocket && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-teal-50 text-[10px] font-semibold text-teal-700 border border-teal-100">
+                                      {product.customMeta.pocket}
+                                    </span>
+                                  )}
+                                  {product.customMeta?.border && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-[10px] font-semibold text-amber-700 border border-amber-100">
+                                      {product.customMeta.border}
+                                    </span>
+                                  )}
+                                  {product.pattern && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {product.pattern}
+                                    </span>
+                                  )}
+                                  {product.fabric && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {product.fabric}
+                                    </span>
+                                  )}
+                                  {product.sleeve && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                      {product.sleeve}
+                                    </span>
+                                  )}
+                                  {(product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]) && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-purple-50 text-[10px] font-semibold text-purple-700 border border-purple-100">
+                                      {product.customMeta?.fit || product.notes?.match(/(Regular|Slim|Comfort)\s+Fit/i)?.[0]}
+                                    </span>
+                                  )}
+                                  {(product.customMeta?.color || product.notes) && (
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                      (product.customMeta?.color?.toLowerCase() === "white" || product.notes?.toLowerCase().includes("white"))
+                                        ? "bg-slate-100 text-slate-800 border-slate-300"
+                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    }`}>
+                                      {product.customMeta?.color || (product.notes?.toLowerCase().includes("white") ? "White" : "Color")}
+                                    </span>
+                                  )}
+                                  {!product.pattern && !product.fabric && !product.sleeve && !product.customMeta && !product.notes && (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-slate-900">
+                                ₹{product.mrp.toLocaleString("en-IN")}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {product.variants.map((v) => (
+                                    <div
+                                      key={v.id}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-xs group"
+                                    >
+                                      <span className="font-bold text-slate-700">{v.size}:</span>
+                                      <span className="font-extrabold text-slate-900">{v.quantity}</span>
+                                      <div className="flex items-center ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          type="button"
+                                          onClick={() => adjustVariantQuick(product.id, v.id, -1)}
+                                          disabled={v.quantity <= 0}
+                                          className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
+                                          title="Decrease 1"
+                                        >
+                                          <Minus size={10} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => adjustVariantQuick(product.id, v.id, 1)}
+                                          className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
+                                          title="Increase 1"
+                                        >
+                                          <Plus size={10} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="inline-block px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs">
+                                  {totalQty}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-black text-emerald-700 text-xs">
+                                {formatINR(valuation)}
+                              </TableCell>
+                              <TableCell className="text-right pr-4">
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditProduct(product)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                    title="Edit Garment"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingProduct(product)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                    title="Delete Product"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
                 </div>
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedProducts.map((product) => renderProductCard(product))}
+                {groupBy === "size"
+                  ? sortedFlatSizeItems.map((item, idx) => renderSizeCard(item, idx))
+                  : sortedProducts.map((product) => renderProductCard(product))}
               </div>
             )}
           </div>

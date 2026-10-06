@@ -214,6 +214,11 @@ export async function POST(request: Request) {
         }
       }
 
+      await tx.product.update({
+        where: { id: productRecord.id },
+        data: { updatedAt: new Date() },
+      });
+
       return tx.product.findUnique({
         where: { id: productRecord.id },
         include: {
