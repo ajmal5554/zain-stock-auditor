@@ -651,7 +651,7 @@ export default function InventoryPage() {
           collar: editFormCollar,
           subtype: editFormSubtype,
           border: editFormBorder,
-          pocket: editFormPocket,
+          pocket: editFormPocket || (isShirtCategory(selectedEditCatName) ? "Single Pocket" : null),
           customMeta: editFormCustomMeta,
           fit: editFormFit,
           color: editFormColor,
@@ -2283,18 +2283,22 @@ export default function InventoryPage() {
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
                   <span>Pocket Style</span>
-                  {editFormPocket && (
+                  {editFormPocket ? (
                     <span className="text-[10px] text-teal-700 font-semibold lowercase">
                       ({editFormPocket})
                     </span>
-                  )}
+                  ) : isShirtCategory(selectedEditCatName) ? (
+                    <span className="text-[10px] text-emerald-700 font-medium">
+                      (default: Single Pocket)
+                    </span>
+                  ) : null}
                 </label>
                 <select
                   value={editFormPocket || ""}
                   onChange={(e) => setEditFormPocket(e.target.value || null)}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-2xs outline-none focus:border-indigo-600"
                 >
-                  <option value="">None / Not Specified</option>
+                  <option value="">{isShirtCategory(selectedEditCatName) ? "Default (Single Pocket)" : "None / Not Specified"}</option>
                   {(editCatAttrs.pockets || ["No Pocket", "Single Pocket", "Double Pocket"]).map((p) => (
                     <option key={p} value={p}>
                       {p}

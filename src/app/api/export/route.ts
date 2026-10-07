@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isShirtCategory } from "@/lib/constants";
 
 export async function GET() {
   try {
@@ -32,10 +33,11 @@ export async function GET() {
       const collar = meta.collar || "";
       const subtype = meta.subtype || "";
       const border = meta.border || "";
+      const isShirt = isShirtCategory(product.category?.name || "");
       const pocket =
         meta.pocket ||
         product.notes?.match(/(No Pocket|Single Pocket|Double Pocket)/i)?.[0] ||
-        "";
+        (isShirt ? "Single Pocket" : "");
 
       // Extract real user notes/remarks, excluding the fit • color tags
       let cleanNote = "";

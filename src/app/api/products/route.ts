@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auditEntrySchema } from "@/lib/schemas";
+import { isShirtCategory } from "@/lib/constants";
 import { ZodError } from "zod";
 
 export async function GET(request: Request) {
@@ -80,10 +81,23 @@ export async function POST(request: Request) {
     const effectiveColor = validated.color?.trim() || "Color";
     const effectiveFit = validated.fit?.trim() || null;
 
+    // Check category to determine if shirt defaults apply
+    const categoryRecord = await prisma.category.findUnique({
+      where: { id: validated.categoryId },
+      select: { name: true },
+    });
+    const isShirt = categoryRecord?.name ? isShirtCategory(categoryRecord.name) : false;
+
+    // Determine effective pocket:
+    // For shirts, unselected pocket style defaults to "Single Pocket" per store convention.
+    const rawPocket = validated.customMeta?.pocket?.trim();
+    const effectivePocket = rawPocket || (isShirt ? "Single Pocket" : undefined);
+
     // Prepare customMeta and enriched notes where fit and color are considered notes
     const customMetaObj: Record<string, string> = {
       ...(validated.customMeta || {}),
       ...(effectiveFit ? { fit: effectiveFit } : {}),
+      ...(effectivePocket ? { pocket: effectivePocket } : {}),
       color: effectiveColor,
     };
 
@@ -143,6 +157,10 @@ export async function POST(request: Request) {
         }
         if (!existingMeta.border && customMetaObj.border) {
           mergedMeta.border = customMetaObj.border;
+          needsUpdate = true;
+        }
+        if (!existingMeta.pocket && customMetaObj.pocket) {
+          mergedMeta.pocket = customMetaObj.pocket;
           needsUpdate = true;
         }
         if (needsUpdate) {

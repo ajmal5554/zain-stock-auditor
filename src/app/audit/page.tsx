@@ -1117,13 +1117,16 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   const onSubmit = async (data: AuditEntryInput) => {
     setSubmitting(true);
     try {
+      const isShirt = isShirtCategory(selectedCategoryName);
+      const effectivePocket = selectedPocket || (isShirt ? "Single Pocket" : undefined);
+
       const customMeta: Record<string, string> = {
         ...selectedCustomMeta,
       };
       if (selectedSubtype) customMeta.subtype = selectedSubtype;
       if (selectedCollar) customMeta.collar = selectedCollar;
       if (selectedBorder) customMeta.border = selectedBorder;
-      if (selectedPocket) customMeta.pocket = selectedPocket;
+      if (effectivePocket) customMeta.pocket = effectivePocket;
 
       const payload = {
         ...data,
@@ -1223,13 +1226,16 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       }, 150);
     } catch {
       // Offline fallback: queue to localStorage
+      const isShirt = isShirtCategory(selectedCategoryName);
+      const effectivePocket = selectedPocket || (isShirt ? "Single Pocket" : undefined);
+
       const customMeta: Record<string, string> = {
         ...selectedCustomMeta,
       };
       if (selectedSubtype) customMeta.subtype = selectedSubtype;
       if (selectedCollar) customMeta.collar = selectedCollar;
       if (selectedBorder) customMeta.border = selectedBorder;
-      if (selectedPocket) customMeta.pocket = selectedPocket;
+      if (effectivePocket) customMeta.pocket = effectivePocket;
 
       const payload = {
         ...data,
@@ -1844,6 +1850,10 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                     selectedPocket ? (
                       <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                         {selectedPocket}
+                      </span>
+                    ) : isShirtCategory(selectedCategoryName) ? (
+                      <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Unselected: Default to Single Pocket
                       </span>
                     ) : undefined
                   }
