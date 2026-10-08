@@ -9,11 +9,23 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim() || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const brand = searchParams.get("brand")?.trim() || "";
+    const size = searchParams.get("size")?.trim() || "";
 
     const where: Record<string, unknown> = {};
 
     if (categoryId) {
       where.categoryId = categoryId;
+    }
+
+    if (brand) {
+      where.brand = { equals: brand, mode: "insensitive" };
+    }
+
+    if (size) {
+      where.variants = {
+        some: { size: { equals: size, mode: "insensitive" } },
+      };
     }
 
     if (search) {

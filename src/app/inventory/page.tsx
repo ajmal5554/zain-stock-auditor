@@ -123,6 +123,8 @@ export default function InventoryPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
@@ -141,6 +143,13 @@ export default function InventoryPage() {
           setGroupBy(saved as "style" | "size");
         }
       }
+
+      const b = params.get("brand");
+      if (b) setBrandFilter(b);
+      const s = params.get("size");
+      if (s) setSizeFilter(s);
+      const c = params.get("category") || params.get("categoryId");
+      if (c) setCategoryFilter(c);
     }
   }, []);
 
@@ -239,8 +248,48 @@ export default function InventoryPage() {
     };
   }, [search, categoryFilter, sortOption, fetchProducts]);
 
+  // Harvest available brands from products
+  const availableBrands = useMemo(() => {
+    const brandCounts: Record<string, number> = {};
+    for (const p of products) {
+      if (categoryFilter && p.category.id !== categoryFilter) continue;
+      const b = p.brand?.trim();
+      if (b) {
+        brandCounts[b] = (brandCounts[b] || 0) + 1;
+      }
+    }
+    return Object.entries(brandCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, categoryFilter]);
+
+  // Harvest available sizes from products
+  const availableSizes = useMemo(() => {
+    const sizePcs: Record<string, number> = {};
+    for (const p of products) {
+      if (categoryFilter && p.category.id !== categoryFilter) continue;
+      if (brandFilter && p.brand.toLowerCase() !== brandFilter.toLowerCase()) continue;
+      for (const v of p.variants) {
+        const s = v.size?.trim();
+        if (s) {
+          sizePcs[s] = (sizePcs[s] || 0) + v.quantity;
+        }
+      }
+    }
+    return Object.entries(sizePcs)
+      .map(([size, pcs]) => ({ size, pcs }))
+      .sort((a, b) => {
+        const numA = parseFloat(a.size);
+        const numB = parseFloat(b.size);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.size.localeCompare(b.size);
+      });
+  }, [products, categoryFilter, brandFilter]);
+
   // Calculate count of active secondary filters
   const activeFilterCount =
+    (brandFilter ? 1 : 0) +
+    (sizeFilter ? 1 : 0) +
     (stockFilter !== "all" ? 1 : 0) +
     (fitFilter ? 1 : 0) +
     (colorFilter ? 1 : 0) +
@@ -253,6 +302,8 @@ export default function InventoryPage() {
   const resetAllFilters = () => {
     setSearch("");
     setCategoryFilter("");
+    setBrandFilter("");
+    setSizeFilter("");
     setStockFilter("all");
     setFitFilter("");
     setColorFilter("");
@@ -279,6 +330,21 @@ export default function InventoryPage() {
       if (priceRangeFilter === "500_1000" && (p.mrp < 500 || p.mrp > 1000)) return false;
       if (priceRangeFilter === "1000_2000" && (p.mrp < 1000 || p.mrp > 2000)) return false;
       if (priceRangeFilter === "above_2000" && p.mrp <= 2000) return false;
+
+      // Brand filter
+      if (brandFilter) {
+        if (p.brand.toLowerCase() !== brandFilter.toLowerCase()) return false;
+      }
+
+      // Size filter
+      if (sizeFilter) {
+        const hasSize = p.variants.some((v) => {
+          if (v.size.toLowerCase() !== sizeFilter.toLowerCase()) return false;
+          if (stockFilter === "out_of_stock") return v.quantity === 0;
+          return stockFilter === "all" ? true : v.quantity > 0;
+        });
+        if (!hasSize) return false;
+      }
 
       // Fit filter
       if (fitFilter) {
@@ -324,6 +390,8 @@ export default function InventoryPage() {
     });
   }, [
     products,
+    brandFilter,
+    sizeFilter,
     stockFilter,
     priceRangeFilter,
     fitFilter,
@@ -404,6 +472,9 @@ export default function InventoryPage() {
 
     for (const p of filteredProducts) {
       for (const v of p.variants) {
+        if (sizeFilter && v.size.toLowerCase() !== sizeFilter.toLowerCase()) {
+          continue;
+        }
         flatItems.push({
           id: `${p.id}-${v.id}`,
           productId: p.id,
@@ -465,7 +536,7 @@ export default function InventoryPage() {
     });
 
     return flatItems;
-  }, [filteredProducts, sortOption]);
+  }, [filteredProducts, sortOption, sizeFilter]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -709,20 +780,28 @@ export default function InventoryPage() {
   );
 
   // Filtered KPIs (matching active filters)
-  const filteredPcs = sortedProducts.reduce(
-    (sum, p) => sum + p.variants.reduce((vs, v) => vs + v.quantity, 0),
-    0
-  );
+  const filteredPcs =
+    groupBy === "size" || sizeFilter
+      ? sortedFlatSizeItems.reduce((sum, item) => sum + item.quantity, 0)
+      : sortedProducts.reduce(
+          (sum, p) => sum + p.variants.reduce((vs, v) => vs + v.quantity, 0),
+          0
+        );
   const filteredStyles = sortedProducts.length;
-  const filteredValue = sortedProducts.reduce(
-    (sum, p) =>
-      sum + p.variants.reduce((vs, v) => vs + v.quantity * p.mrp, 0),
-    0
-  );
+  const filteredValue =
+    groupBy === "size" || sizeFilter
+      ? sortedFlatSizeItems.reduce((sum, item) => sum + item.valuation, 0)
+      : sortedProducts.reduce(
+          (sum, p) => sum + p.variants.reduce((vs, v) => vs + v.quantity * p.mrp, 0),
+          0
+        );
 
   const renderProductCard = (product: Product) => {
-    const isExpanded = expandedIds.has(product.id);
+    const isExpanded = expandedIds.has(product.id) || Boolean(sizeFilter);
     const totalQty = product.variants.reduce((s, v) => s + v.quantity, 0);
+    const matchingSizeVariant = sizeFilter
+      ? product.variants.find((v) => v.size.toLowerCase() === sizeFilter.toLowerCase())
+      : null;
 
     return (
       <Card
@@ -802,7 +881,12 @@ export default function InventoryPage() {
               {product.brand}
             </h3>
 
-            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+            <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+              {matchingSizeVariant && (
+                <span className="font-extrabold text-[11px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                  Size {sizeFilter}: {matchingSizeVariant.quantity} pcs
+                </span>
+              )}
               {product.sleeve && <span>{product.sleeve}</span>}
               <span className="font-bold text-emerald-600">
                 ₹{product.mrp}
@@ -870,12 +954,17 @@ export default function InventoryPage() {
             <div className="space-y-1.5">
               {product.variants.map((v) => {
                 const isEditing = editingVariant === v.id;
+                const isSelectedSize = sizeFilter && v.size.toLowerCase() === sizeFilter.toLowerCase();
                 return (
                   <div
                     key={v.id}
-                    className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs"
+                    className={`flex items-center justify-between p-2 rounded-xl border shadow-2xs transition-all ${
+                      isSelectedSize
+                        ? "bg-indigo-50/70 border-indigo-500 ring-1 ring-indigo-500"
+                        : "bg-white border-slate-200/80"
+                    }`}
                   >
-                    <span className="font-extrabold text-sm text-slate-800 ml-1">
+                    <span className={`font-extrabold text-sm ml-1 ${isSelectedSize ? "text-indigo-950 font-black" : "text-slate-800"}`}>
                       {v.size}
                     </span>
 
@@ -1372,6 +1461,44 @@ export default function InventoryPage() {
             ))}
           </select>
 
+          {/* Brand Dropdown */}
+          <select
+            value={brandFilter}
+            onChange={(e) => setBrandFilter(e.target.value)}
+            className={`h-10 px-3 rounded-xl border bg-white text-xs font-semibold shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0 transition-colors ${
+              brandFilter
+                ? "border-indigo-500 text-indigo-900 bg-indigo-50/50 font-bold"
+                : "border-slate-200 text-slate-700"
+            }`}
+            title="Filter by Brand"
+          >
+            <option value="">All Brands ({availableBrands.length})</option>
+            {availableBrands.map((b) => (
+              <option key={b.name} value={b.name}>
+                {b.name} ({b.count})
+              </option>
+            ))}
+          </select>
+
+          {/* Size Dropdown */}
+          <select
+            value={sizeFilter}
+            onChange={(e) => setSizeFilter(e.target.value)}
+            className={`h-10 px-3 rounded-xl border bg-white text-xs font-semibold shadow-2xs outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shrink-0 transition-colors ${
+              sizeFilter
+                ? "border-indigo-500 text-indigo-900 bg-indigo-50/50 font-bold"
+                : "border-slate-200 text-slate-700"
+            }`}
+            title="Filter by Size"
+          >
+            <option value="">All Sizes ({availableSizes.length})</option>
+            {availableSizes.map((s) => (
+              <option key={s.size} value={s.size}>
+                Size {s.size} ({s.pcs} pcs)
+              </option>
+            ))}
+          </select>
+
           {/* Sort Options Dropdown */}
           <div className="relative shrink-0">
             <select
@@ -1466,6 +1593,44 @@ export default function InventoryPage() {
                   <option value="in_stock">In Stock (&gt; 0 pcs)</option>
                   <option value="low_stock">Low Stock (1–5 pcs)</option>
                   <option value="out_of_stock">Out of Stock (0 pcs)</option>
+                </select>
+              </div>
+
+              {/* Brand Filter */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Brand / Label
+                </label>
+                <select
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Brands ({availableBrands.length})</option>
+                  {availableBrands.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name} ({b.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Size Filter */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1 block">
+                  Garment Size
+                </label>
+                <select
+                  value={sizeFilter}
+                  onChange={(e) => setSizeFilter(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
+                >
+                  <option value="">All Sizes ({availableSizes.length})</option>
+                  {availableSizes.map((s) => (
+                    <option key={s.size} value={s.size}>
+                      Size {s.size} ({s.pcs} pcs)
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1624,6 +1789,26 @@ export default function InventoryPage() {
                 onClick={() => setCategoryFilter("")}
               >
                 <span>Category: {categories.find((c) => c.id === categoryFilter)?.name}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {brandFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setBrandFilter("")}
+              >
+                <span>Brand: {brandFilter}</span>
+                <X size={12} />
+              </Badge>
+            )}
+            {sizeFilter && (
+              <Badge
+                variant="secondary"
+                className="gap-1 pl-2 pr-1.5 py-0.5 text-[11px] cursor-pointer hover:bg-slate-200 transition-colors"
+                onClick={() => setSizeFilter("")}
+              >
+                <span>Size: {sizeFilter}</span>
                 <X size={12} />
               </Badge>
             )}
@@ -2043,34 +2228,41 @@ export default function InventoryPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  {product.variants.map((v) => (
-                                    <div
-                                      key={v.id}
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-xs group"
-                                    >
-                                      <span className="font-bold text-slate-700">{v.size}:</span>
-                                      <span className="font-extrabold text-slate-900">{v.quantity}</span>
-                                      <div className="flex items-center ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                          type="button"
-                                          onClick={() => adjustVariantQuick(product.id, v.id, -1)}
-                                          disabled={v.quantity <= 0}
-                                          className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
-                                          title="Decrease 1"
-                                        >
-                                          <Minus size={10} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => adjustVariantQuick(product.id, v.id, 1)}
-                                          className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
-                                          title="Increase 1"
-                                        >
-                                          <Plus size={10} />
-                                        </button>
+                                  {product.variants.map((v) => {
+                                    const isSelectedSize = sizeFilter && v.size.toLowerCase() === sizeFilter.toLowerCase();
+                                    return (
+                                      <div
+                                        key={v.id}
+                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs group transition-all ${
+                                          isSelectedSize
+                                            ? "bg-indigo-100 border-2 border-indigo-600 shadow-2xs"
+                                            : "bg-slate-100 border border-slate-200/80"
+                                        }`}
+                                      >
+                                        <span className={`font-bold ${isSelectedSize ? "text-indigo-900" : "text-slate-700"}`}>{v.size}:</span>
+                                        <span className={`font-extrabold ${isSelectedSize ? "text-indigo-950 font-black text-sm" : "text-slate-900"}`}>{v.quantity}</span>
+                                        <div className="flex items-center ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                          <button
+                                            type="button"
+                                            onClick={() => adjustVariantQuick(product.id, v.id, -1)}
+                                            disabled={v.quantity <= 0}
+                                            className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600 disabled:opacity-30"
+                                            title="Decrease 1"
+                                          >
+                                            <Minus size={10} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => adjustVariantQuick(product.id, v.id, 1)}
+                                            className="w-4 h-4 rounded flex items-center justify-center hover:bg-slate-200 text-slate-600"
+                                            title="Increase 1"
+                                          >
+                                            <Plus size={10} />
+                                          </button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
