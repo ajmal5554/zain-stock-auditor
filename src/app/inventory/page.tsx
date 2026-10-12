@@ -229,17 +229,23 @@ export default function InventoryPage() {
     []
   );
 
+  const isInitialMount = useRef(true);
+
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
       .then(setCategories)
       .catch(() => {});
-    fetchProducts("", "", sortOption);
-  }, [fetchProducts, sortOption]);
+  }, []);
 
-  // Debounced search
+  // Debounced search and filter fetch
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      fetchProducts(search, categoryFilter, sortOption);
+      return;
+    }
     searchTimeout.current = setTimeout(() => {
       fetchProducts(search, categoryFilter, sortOption);
     }, 300);
@@ -472,9 +478,12 @@ export default function InventoryPage() {
 
     for (const p of filteredProducts) {
       for (const v of p.variants) {
-        if (sizeFilter && v.size.toLowerCase() !== sizeFilter.toLowerCase()) {
+        if (sizeFilter && v.size.trim().toLowerCase() !== sizeFilter.trim().toLowerCase()) {
           continue;
         }
+        if (stockFilter === "in_stock" && v.quantity <= 0) continue;
+        if (stockFilter === "low_stock" && (v.quantity <= 0 || v.quantity > 5)) continue;
+        if (stockFilter === "out_of_stock" && v.quantity > 0) continue;
         flatItems.push({
           id: `${p.id}-${v.id}`,
           productId: p.id,
