@@ -118,6 +118,58 @@ function formatTimestamp(dateStr?: string) {
   );
 }
 
+function matchesPattern(itemPattern: string | null | undefined, filterPattern: string): boolean {
+  if (!filterPattern) return true;
+  if (!itemPattern) return false;
+  const a = itemPattern.trim().toLowerCase();
+  const b = filterPattern.trim().toLowerCase();
+  if (a === b) return true;
+
+  const stem = (s: string) => {
+    if (s.startsWith("strip")) return "stripe";
+    if (s.startsWith("check")) return "check";
+    if (s.startsWith("print")) return "print";
+    if (s.startsWith("plain") || s.startsWith("solid")) return "plain";
+    return s.replace(/s$/, "");
+  };
+
+  return stem(a) === stem(b) || a.includes(b) || b.includes(a);
+}
+
+function matchesFabric(itemFabric: string | null | undefined, filterFabric: string): boolean {
+  if (!filterFabric) return true;
+  if (!itemFabric) return false;
+  const a = itemFabric.trim().toLowerCase();
+  const b = filterFabric.trim().toLowerCase();
+  if (a === b) return true;
+
+  const cleanA = a.replace(/[^a-z0-9]/g, "");
+  const cleanB = b.replace(/[^a-z0-9]/g, "");
+  if (cleanA === cleanB) return true;
+
+  if (a.includes(b) || b.includes(a)) return true;
+  if ((a.includes("poly") && b.includes("poly")) || (a.includes("lycra") && b.includes("lycra"))) {
+    return true;
+  }
+  return false;
+}
+
+function matchesSize(itemSize: string | null | undefined, filterSize: string): boolean {
+  if (!filterSize) return true;
+  if (!itemSize) return false;
+  const a = itemSize.trim().toLowerCase();
+  const b = filterSize.trim().toLowerCase();
+  if (a === b) return true;
+
+  const norm = (s: string) => {
+    if (s === "2xl" || s === "xxl") return "xxl";
+    if (s === "3xl" || s === "xxxl") return "xxxl";
+    if (s === "4xl" || s === "xxxxl") return "xxxxl";
+    return s;
+  };
+  return norm(a) === norm(b);
+}
+
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -292,6 +344,46 @@ export default function InventoryPage() {
       });
   }, [products, categoryFilter, brandFilter]);
 
+  // Harvest available patterns from products
+  const availablePatterns = useMemo(() => {
+    const patternCounts: Record<string, number> = {};
+    for (const p of products) {
+      if (categoryFilter && p.category.id !== categoryFilter) continue;
+      const pat = p.pattern?.trim();
+      if (pat) {
+        patternCounts[pat] = (patternCounts[pat] || 0) + 1;
+      }
+    }
+    for (const def of PATTERNS) {
+      if (!(def in patternCounts)) {
+        patternCounts[def] = 0;
+      }
+    }
+    return Object.entries(patternCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [products, categoryFilter]);
+
+  // Harvest available fabrics from products
+  const availableFabrics = useMemo(() => {
+    const fabricCounts: Record<string, number> = {};
+    for (const p of products) {
+      if (categoryFilter && p.category.id !== categoryFilter) continue;
+      const fab = p.fabric?.trim();
+      if (fab) {
+        fabricCounts[fab] = (fabricCounts[fab] || 0) + 1;
+      }
+    }
+    for (const def of FABRICS) {
+      if (!(def in fabricCounts)) {
+        fabricCounts[def] = 0;
+      }
+    }
+    return Object.entries(fabricCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [products, categoryFilter]);
+
   // Calculate count of active secondary filters
   const activeFilterCount =
     (brandFilter ? 1 : 0) +
@@ -339,13 +431,13 @@ export default function InventoryPage() {
 
       // Brand filter
       if (brandFilter) {
-        if (p.brand.toLowerCase() !== brandFilter.toLowerCase()) return false;
+        if (p.brand.trim().toLowerCase() !== brandFilter.trim().toLowerCase()) return false;
       }
 
       // Size filter
       if (sizeFilter) {
         const hasSize = p.variants.some((v) => {
-          if (v.size.toLowerCase() !== sizeFilter.toLowerCase()) return false;
+          if (!matchesSize(v.size, sizeFilter)) return false;
           if (stockFilter === "out_of_stock") return v.quantity === 0;
           return stockFilter === "all" ? true : v.quantity > 0;
         });
@@ -354,42 +446,48 @@ export default function InventoryPage() {
 
       // Fit filter
       if (fitFilter) {
+        const targetFit = fitFilter.trim().toLowerCase();
         const itemFit =
           p.customMeta?.fit ||
           p.notes?.match(/(Regular|Slim|Comfort|Relaxed|Oversized|Classic)\s+Fit/i)?.[0];
-        if (itemFit?.toLowerCase() !== fitFilter.toLowerCase()) return false;
+        if (!itemFit || !itemFit.toLowerCase().includes(targetFit)) return false;
       }
 
       // Color filter
       if (colorFilter) {
-        let itemColor = p.customMeta?.color;
+        const targetColor = colorFilter.trim().toLowerCase();
+        let itemColor = p.customMeta?.color?.toLowerCase();
         if (!itemColor && p.notes) {
-          if (/white/i.test(p.notes)) itemColor = "White";
-          else if (/color/i.test(p.notes)) itemColor = "Color";
+          const notesLower = p.notes.toLowerCase();
+          if (targetColor === "white" && notesLower.includes("white")) itemColor = "white";
+          else if (targetColor === "color" && (notesLower.includes("color") || !notesLower.includes("white"))) itemColor = "color";
+          else if (notesLower.includes(targetColor)) itemColor = targetColor;
         }
-        if (!itemColor) itemColor = "Color";
-        if (itemColor.toLowerCase() !== colorFilter.toLowerCase()) return false;
+        if (!itemColor) itemColor = "color";
+        if (itemColor !== targetColor && !itemColor.includes(targetColor) && !targetColor.includes(itemColor)) return false;
       }
 
       // Collar filter
       if (collarFilter) {
-        const itemCollar = p.customMeta?.collar;
-        if (!itemCollar || itemCollar.toLowerCase() !== collarFilter.toLowerCase()) return false;
+        const targetCollar = collarFilter.trim().toLowerCase();
+        const itemCollar = p.customMeta?.collar?.toLowerCase() || (p.notes?.toLowerCase().includes(targetCollar) ? targetCollar : null);
+        if (!itemCollar || (!itemCollar.includes(targetCollar) && !targetCollar.includes(itemCollar))) return false;
       }
 
       // Sleeve filter
       if (sleeveFilter) {
-        if (!p.sleeve || p.sleeve.toLowerCase() !== sleeveFilter.toLowerCase()) return false;
+        const targetSleeve = sleeveFilter.trim().toLowerCase();
+        if (!p.sleeve || (!p.sleeve.toLowerCase().includes(targetSleeve) && !targetSleeve.includes(p.sleeve.toLowerCase()))) return false;
       }
 
       // Fabric filter
       if (fabricFilter) {
-        if (!p.fabric || p.fabric.toLowerCase() !== fabricFilter.toLowerCase()) return false;
+        if (!matchesFabric(p.fabric, fabricFilter)) return false;
       }
 
       // Pattern filter
       if (patternFilter) {
-        if (!p.pattern || p.pattern.toLowerCase() !== patternFilter.toLowerCase()) return false;
+        if (!matchesPattern(p.pattern, patternFilter)) return false;
       }
 
       return true;
@@ -478,7 +576,7 @@ export default function InventoryPage() {
 
     for (const p of filteredProducts) {
       for (const v of p.variants) {
-        if (sizeFilter && v.size.trim().toLowerCase() !== sizeFilter.trim().toLowerCase()) {
+        if (sizeFilter && !matchesSize(v.size, sizeFilter)) {
           continue;
         }
         if (stockFilter === "in_stock" && v.quantity <= 0) continue;
@@ -809,7 +907,7 @@ export default function InventoryPage() {
     const isExpanded = expandedIds.has(product.id) || Boolean(sizeFilter);
     const totalQty = product.variants.reduce((s, v) => s + v.quantity, 0);
     const matchingSizeVariant = sizeFilter
-      ? product.variants.find((v) => v.size.toLowerCase() === sizeFilter.toLowerCase())
+      ? product.variants.find((v) => matchesSize(v.size, sizeFilter))
       : null;
 
     return (
@@ -963,7 +1061,7 @@ export default function InventoryPage() {
             <div className="space-y-1.5">
               {product.variants.map((v) => {
                 const isEditing = editingVariant === v.id;
-                const isSelectedSize = sizeFilter && v.size.toLowerCase() === sizeFilter.toLowerCase();
+                const isSelectedSize = sizeFilter && matchesSize(v.size, sizeFilter);
                 return (
                   <div
                     key={v.id}
@@ -1729,9 +1827,11 @@ export default function InventoryPage() {
                   onChange={(e) => setFabricFilter(e.target.value)}
                   className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
                 >
-                  <option value="">All Fabrics</option>
-                  {FABRICS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
+                  <option value="">All Fabrics ({availableFabrics.length})</option>
+                  {availableFabrics.map((f) => (
+                    <option key={f.name} value={f.name}>
+                      {f.name} {f.count > 0 ? `(${f.count})` : ""}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1746,9 +1846,11 @@ export default function InventoryPage() {
                   onChange={(e) => setPatternFilter(e.target.value)}
                   className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-indigo-600"
                 >
-                  <option value="">All Patterns</option>
-                  {PATTERNS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                  <option value="">All Patterns ({availablePatterns.length})</option>
+                  {availablePatterns.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.count > 0 ? `(${p.count})` : ""}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2238,7 +2340,7 @@ export default function InventoryPage() {
                               <TableCell>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {product.variants.map((v) => {
-                                    const isSelectedSize = sizeFilter && v.size.toLowerCase() === sizeFilter.toLowerCase();
+                                    const isSelectedSize = sizeFilter && matchesSize(v.size, sizeFilter);
                                     return (
                                       <div
                                         key={v.id}

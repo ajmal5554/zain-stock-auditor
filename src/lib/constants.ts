@@ -58,9 +58,9 @@ export const NO_SLEEVE_CATEGORIES = [
 /** Pattern options */
 export const PATTERNS = [
   "Plain",
-  "Check",
-  "Stripe",
-  "Printed",
+  "Stripes",
+  "Checks",
+  "Prints",
   "Self-Design",
   "Textured",
 ];
