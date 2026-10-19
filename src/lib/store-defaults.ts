@@ -195,6 +195,19 @@ export const DEFAULT_CATEGORY_SIZE_SCALES: Record<
       sizes: ["Standard Set", "Double Set"],
     },
   ],
+  "Shirts": [
+    {
+      id: "shirt_alpha",
+      name: "Standard Alpha (S - 5XL)",
+      sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
+      default: true,
+    },
+    {
+      id: "shirt_collar",
+      name: "Collar Size (38 - 46 cm)",
+      sizes: ["38", "39", "40", "42", "44", "46"],
+    },
+  ],
   "Formal Shirts": [
     {
       id: "shirt_collar",
@@ -204,15 +217,15 @@ export const DEFAULT_CATEGORY_SIZE_SCALES: Record<
     },
     {
       id: "shirt_alpha",
-      name: "Standard Alpha (S - 3XL)",
-      sizes: ["S", "M", "L", "XL", "XXL", "3XL"],
+      name: "Standard Alpha (S - 5XL)",
+      sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
     },
   ],
   "Casual Shirts": [
     {
       id: "casual_alpha",
-      name: "Standard Alpha (S - 3XL)",
-      sizes: ["S", "M", "L", "XL", "XXL", "3XL"],
+      name: "Standard Alpha (S - 5XL)",
+      sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
       default: true,
     },
     {

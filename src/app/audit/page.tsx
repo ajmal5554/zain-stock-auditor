@@ -36,7 +36,7 @@ import {
   DEFAULT_POCKETS,
   getCategoryMrpPresets,
 } from "@/lib/constants";
-import { resolveCategoryAttributes } from "@/lib/store-defaults";
+import { resolveCategoryAttributes, DEFAULT_CATEGORY_SIZE_SCALES } from "@/lib/store-defaults";
 import { enqueueOffline, setupOfflineSync } from "@/lib/offline-queue";
 
 import { Button } from "@/components/ui/button";
@@ -446,26 +446,72 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   // Available size scales for currently selected category
   const currentCategoryScales: CategoryScale[] = useMemo(() => {
     if (!selectedCategoryName) return [];
+
+    // 1. Direct match in user settings
     if (storeSizeScales[selectedCategoryName] && storeSizeScales[selectedCategoryName].length > 0) {
       return storeSizeScales[selectedCategoryName];
     }
-    // Case-insensitive lookup in user settings
-    const targetNorm = selectedCategoryName.toLowerCase().replace(/s\b|&.*$/g, "").trim();
+
+    // 2. Case-insensitive / normalized lookup in user settings
+    const targetLower = selectedCategoryName.toLowerCase().trim();
+    const targetNorm = targetLower.replace(/s\b|&.*$|\/.*$/g, "").trim();
     for (const [key, scales] of Object.entries(storeSizeScales)) {
-      const keyNorm = key.toLowerCase().replace(/s\b|&.*$/g, "").trim();
-      if ((keyNorm === targetNorm || key.toLowerCase() === selectedCategoryName.toLowerCase()) && scales.length > 0) {
+      const keyLower = key.toLowerCase().trim();
+      const keyNorm = keyLower.replace(/s\b|&.*$|\/.*$/g, "").trim();
+      if ((keyNorm === targetNorm || keyLower === targetLower) && scales && scales.length > 0) {
         return scales;
       }
     }
-    // Minimal fallback ONLY if user has not configured any scale
+
+    // 3. Smart shirt-category cross-lookup in user settings:
+    // If auditing any shirt category ("Shirts", "Casual Shirts", "Formal Shirts"),
+    // look for user-configured shirt scales across all shirt categories
+    if (isShirtCategory(selectedCategoryName)) {
+      const shirtKeys = ["Shirts", "Casual Shirts", "Formal Shirts"];
+      for (const sk of shirtKeys) {
+        if (storeSizeScales[sk] && storeSizeScales[sk].length > 0) {
+          return storeSizeScales[sk];
+        }
+      }
+      for (const [key, scales] of Object.entries(storeSizeScales)) {
+        if (isShirtCategory(key) && scales && scales.length > 0) {
+          return scales;
+        }
+      }
+    }
+
+    // 4. Match in system default size scales (DEFAULT_CATEGORY_SIZE_SCALES)
+    if (DEFAULT_CATEGORY_SIZE_SCALES[selectedCategoryName]?.length) {
+      return DEFAULT_CATEGORY_SIZE_SCALES[selectedCategoryName];
+    }
+    for (const [key, scales] of Object.entries(DEFAULT_CATEGORY_SIZE_SCALES)) {
+      const keyNorm = key.toLowerCase().replace(/s\b|&.*$|\/.*$/g, "").trim();
+      if ((keyNorm === targetNorm || key.toLowerCase() === targetLower) && scales.length > 0) {
+        return scales;
+      }
+    }
+    if (isShirtCategory(selectedCategoryName)) {
+      if (DEFAULT_CATEGORY_SIZE_SCALES["Shirts"]?.length) {
+        return DEFAULT_CATEGORY_SIZE_SCALES["Shirts"];
+      }
+      if (DEFAULT_CATEGORY_SIZE_SCALES["Casual Shirts"]?.length) {
+        return DEFAULT_CATEGORY_SIZE_SCALES["Casual Shirts"];
+      }
+      if (DEFAULT_CATEGORY_SIZE_SCALES["Formal Shirts"]?.length) {
+        return DEFAULT_CATEGORY_SIZE_SCALES["Formal Shirts"];
+      }
+    }
+
+    // 5. Minimal fallbacks
     if (isMunduCategory(selectedCategoryName)) {
       return [{ id: "scale_mundu_default", name: "Type", sizes: ["Single", "Double"], default: true }];
     }
+
     return [
       {
         id: "default_alpha",
-        name: "Standard (S - 3XL)",
-        sizes: ["S", "M", "L", "XL", "XXL", "3XL"],
+        name: "Standard (S - 5XL)",
+        sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
         default: true,
       },
     ];
@@ -476,10 +522,52 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     if (currentCategoryScales.length > 0) {
       const defaultScale =
         currentCategoryScales.find((s: CategoryScale) => s.default) || currentCategoryScales[0];
-      setActiveScaleId(defaultScale.id);
-      setSizes(defaultScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
+      setActiveScaleId((prev) => {
+        return currentCategoryScales.some((s) => s.id === prev) ? prev : defaultScale.id;
+      });
+      setSizes((prev) => {
+        const existingMap = new Map(prev.map((e) => [e.size, e.quantity]));
+        const newSizes = defaultScale.sizes.map((s: string) => ({
+          size: s,
+          quantity: existingMap.get(s) || 0,
+        }));
+        for (const e of prev) {
+          if (e.quantity > 0 && !newSizes.some((ns) => ns.size === e.size)) {
+            newSizes.push(e);
+          }
+        }
+        return newSizes;
+      });
     }
   }, [selectedCategoryName, currentCategoryScales]);
+
+  // Ensure all sizes defined in active scale are always present in the sizes table
+  useEffect(() => {
+    if (!activeScaleId || currentCategoryScales.length === 0) return;
+    const activeScale =
+      currentCategoryScales.find((s: CategoryScale) => s.id === activeScaleId) ||
+      currentCategoryScales[0];
+    if (!activeScale) return;
+
+    setSizes((prev) => {
+      const prevSizesSet = new Set(prev.map((p) => p.size));
+      const missingSizes = activeScale.sizes.filter((s) => !prevSizesSet.has(s));
+      if (missingSizes.length === 0) return prev;
+
+      // Maintain order defined by activeScale, preserving existing quantities
+      const existingMap = new Map(prev.map((e) => [e.size, e.quantity]));
+      const updatedSizes = activeScale.sizes.map((s) => ({
+        size: s,
+        quantity: existingMap.get(s) || 0,
+      }));
+      for (const e of prev) {
+        if (!activeScale.sizes.includes(e.size)) {
+          updatedSizes.push(e);
+        }
+      }
+      return updatedSizes;
+    });
+  }, [activeScaleId, currentCategoryScales]);
 
   // Handle switching size scale
   const handleScaleChange = (scale: CategoryScale) => {

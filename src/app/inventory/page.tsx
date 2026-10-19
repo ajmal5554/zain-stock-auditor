@@ -165,6 +165,7 @@ function matchesSize(itemSize: string | null | undefined, filterSize: string): b
     if (s === "2xl" || s === "xxl") return "xxl";
     if (s === "3xl" || s === "xxxl") return "xxxl";
     if (s === "4xl" || s === "xxxxl") return "xxxxl";
+    if (s === "5xl" || s === "xxxxxl") return "xxxxxl";
     return s;
   };
   return norm(a) === norm(b);

@@ -28,7 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/toaster";
-import { resolveCategoryAttributes } from "@/lib/store-defaults";
+import { resolveCategoryAttributes, DEFAULT_CATEGORY_SIZE_SCALES } from "@/lib/store-defaults";
 
 interface Category {
   id: string;
@@ -69,8 +69,8 @@ type AttributesMap = Record<string, CategoryAttributes>;
 const STARTER_TEMPLATES: Record<string, { scales: SizeScale[]; attrs: CategoryAttributes }> = {
   shirt: {
     scales: [
-      { id: "scale_shirt_alpha", name: "Alpha (S - 3XL)", sizes: ["S", "M", "L", "XL", "XXL", "3XL"], default: true },
-      { id: "scale_shirt_collar", name: "Collar Sizes (38 - 44)", sizes: ["38", "39", "40", "42", "44"] },
+      { id: "scale_shirt_alpha", name: "Alpha (S - 5XL)", sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], default: true },
+      { id: "scale_shirt_collar", name: "Collar Sizes (38 - 46)", sizes: ["38", "39", "40", "42", "44", "46"] },
     ],
     attrs: {
       sleeves: ["Full Sleeve", "Half Sleeve"],
@@ -460,6 +460,12 @@ export default function SettingsPage() {
   // ═══════════════════════════════ SIZE SCALE ACTIONS ═══════════════════════════════
   const currentCategoryScales: SizeScale[] = useMemo(() => {
     if (!selectedScaleCategory) return [];
+    if (sizeScales[selectedScaleCategory] && sizeScales[selectedScaleCategory].length > 0) {
+      return sizeScales[selectedScaleCategory];
+    }
+    if (DEFAULT_CATEGORY_SIZE_SCALES[selectedScaleCategory]?.length) {
+      return DEFAULT_CATEGORY_SIZE_SCALES[selectedScaleCategory];
+    }
     return sizeScales[selectedScaleCategory] || [];
   }, [sizeScales, selectedScaleCategory]);
 
@@ -1169,7 +1175,10 @@ export default function SettingsPage() {
             <CategorySelector
               selected={selectedScaleCategory}
               onSelect={setSelectedScaleCategory}
-              countFn={(name) => `${sizeScales[name]?.length || 0} scale${(sizeScales[name]?.length || 0) !== 1 ? "s" : ""}`}
+              countFn={(name) => {
+                const count = sizeScales[name]?.length || DEFAULT_CATEGORY_SIZE_SCALES[name]?.length || 0;
+                return `${count} scale${count !== 1 ? "s" : ""}`;
+              }}
             />
 
             {selectedScaleCategory && (

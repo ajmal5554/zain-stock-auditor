@@ -15,7 +15,7 @@ export const SIZE_PRESETS: Record<string, string[]> = {
   accessory: ["Free Size"],
   accessories: ["Free Size"],
   belt: ["Free Size"],
-  default: ["S", "M", "L", "XL", "XXL"],
+  default: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
 };
 
 /** Innerwear size scales for Indian retail */
