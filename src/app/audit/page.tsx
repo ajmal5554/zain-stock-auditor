@@ -1907,10 +1907,10 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               </div>
             </div>
 
-            {/* Subtypes */}
-            {((currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0) || isInnerwear) && (
+            {/* Subtypes / Collections */}
+            {((currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0) || isInnerwear || isShirtCategory(selectedCategoryName)) && (
               <ChipSelector
-                label="Subtype / Style"
+                label={isShirtCategory(selectedCategoryName) ? "Collection / Subtype" : "Subtype / Style"}
                 options={currentCategoryAttrs.subtypes || []}
                 value={selectedSubtype}
                 onChange={setSelectedSubtype}
