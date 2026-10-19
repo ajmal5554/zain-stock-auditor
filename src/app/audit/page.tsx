@@ -36,7 +36,7 @@ import {
   DEFAULT_POCKETS,
   getCategoryMrpPresets,
 } from "@/lib/constants";
-import { resolveCategoryAttributes, DEFAULT_CATEGORY_SIZE_SCALES } from "@/lib/store-defaults";
+import { resolveCategoryAttributes, DEFAULT_CATEGORY_SIZE_SCALES, DEFAULT_BRAND_COLLECTIONS } from "@/lib/store-defaults";
 import { enqueueOffline, setupOfflineSync } from "@/lib/offline-queue";
 
 import { Button } from "@/components/ui/button";
@@ -129,6 +129,7 @@ export default function AuditPage() {
       }
     >
   >({});
+  const [brandCollections, setBrandCollections] = useState<Record<string, string[]>>(DEFAULT_BRAND_COLLECTIONS);
   const [activeScaleId, setActiveScaleId] = useState<string>("");
 
   // Dynamic garment attribute selections
@@ -211,6 +212,8 @@ export default function AuditPage() {
       if (cachedScales) setStoreSizeScales(JSON.parse(cachedScales));
       const cachedAttrs = localStorage.getItem("zain_category_attributes");
       if (cachedAttrs) setStoreAttributes(JSON.parse(cachedAttrs));
+      const cachedBrandCols = localStorage.getItem("zain_brand_collections");
+      if (cachedBrandCols) setBrandCollections(JSON.parse(cachedBrandCols));
       const cachedColors = localStorage.getItem("zain_store_colors");
       if (cachedColors) setStoreColors(JSON.parse(cachedColors));
     } catch {}
@@ -225,6 +228,10 @@ export default function AuditPage() {
         if (data.attributes && Object.keys(data.attributes).length > 0) {
           setStoreAttributes(data.attributes);
           localStorage.setItem("zain_category_attributes", JSON.stringify(data.attributes));
+        }
+        if (data.brandCollections && Object.keys(data.brandCollections).length > 0) {
+          setBrandCollections(data.brandCollections);
+          localStorage.setItem("zain_brand_collections", JSON.stringify(data.brandCollections));
         }
         if (Array.isArray(data.colors) && data.colors.length > 0) {
           setStoreColors((prev) => {
@@ -618,7 +625,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         if (typeof m.collar === "string" && m.collar.trim() && matchesCat) collars.add(m.collar.trim());
         if (typeof m.pocket === "string" && m.pocket.trim() && matchesCat) pockets.add(m.pocket.trim());
         if (typeof m.fit === "string" && m.fit.trim()) fits.add(m.fit.trim());
-        if (typeof m.subtype === "string" && m.subtype.trim() && matchesCat) subtypes.add(m.subtype.trim());
+        if (typeof m.subtype === "string" && m.subtype.trim() && matchesCat && !isShirtCategory(selectedCategoryName)) subtypes.add(m.subtype.trim());
         if (typeof m.border === "string" && m.border.trim() && matchesCat) borders.add(m.border.trim());
 
         // Any custom attribute groups (e.g. pocket, wash, rise)
@@ -684,6 +691,66 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       customAttributes: customMerged,
     };
   }, [storeAttributes, selectedCategoryName, harvestedCategoryAttrs]);
+
+  // Helper to look up brand collections case-insensitively
+  const getBrandCollections = useCallback(
+    (brandName: string): string[] => {
+      const q = (brandName || "").trim().toLowerCase();
+      if (!q) return [];
+      for (const [b, cols] of Object.entries(brandCollections)) {
+        if (b.toLowerCase() === q && Array.isArray(cols)) return cols;
+      }
+      for (const [b, cols] of Object.entries(DEFAULT_BRAND_COLLECTIONS)) {
+        if (b.toLowerCase() === q && Array.isArray(cols)) return cols;
+      }
+      return [];
+    },
+    [brandCollections]
+  );
+
+  // Harvest collections specifically for the active brand from existing storeProducts
+  const harvestedBrandCollections = useMemo(() => {
+    const q = (watchedBrand || "").trim().toLowerCase();
+    if (!q) return [];
+    const set = new Set<string>();
+    for (const p of storeProducts) {
+      if ((p.brand || "").trim().toLowerCase() === q) {
+        const sub = p.customMeta?.subtype;
+        if (typeof sub === "string" && sub.trim()) {
+          set.add(sub.trim());
+        }
+      }
+    }
+    return Array.from(set);
+  }, [storeProducts, watchedBrand]);
+
+  // Available subtypes / collections:
+  // For shirts: brand-specific collections (only shown if a brand is typed/selected)
+  // For non-shirts (e.g. innerwear): universal category subtypes (e.g. Brief, Trunk, Vest)
+  const availableSubtypes = useMemo(() => {
+    if (isShirtCategory(selectedCategoryName)) {
+      const brandName = (watchedBrand || "").trim();
+      if (!brandName) return [];
+      const predefined = getBrandCollections(brandName);
+      return Array.from(new Set([...predefined, ...harvestedBrandCollections]));
+    }
+    return currentCategoryAttrs.subtypes || [];
+  }, [
+    selectedCategoryName,
+    watchedBrand,
+    getBrandCollections,
+    harvestedBrandCollections,
+    currentCategoryAttrs.subtypes,
+  ]);
+
+  // When brand changes for a shirt, reset selected subtype if it doesn't belong to the new brand
+  useEffect(() => {
+    if (isShirtCategory(selectedCategoryName)) {
+      if (selectedSubtype && !availableSubtypes.includes(selectedSubtype)) {
+        setSelectedSubtype(null);
+      }
+    }
+  }, [watchedBrand, selectedCategoryName, availableSubtypes, selectedSubtype]);
 
   // Update category and sleeve visibility
   useEffect(() => {
@@ -811,6 +878,51 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     [setValue]
   );
 
+  // Add a brand-specific collection (e.g. for Minister White, Otto, or Raymond)
+  const handleAddBrandCollection = useCallback(
+    async (val: string) => {
+      const trimmed = val.trim();
+      const activeBrand = (watchedBrand || "").trim();
+      if (!trimmed || !activeBrand) return;
+
+      let targetBrandKey = activeBrand;
+      for (const b of Object.keys(brandCollections)) {
+        if (b.toLowerCase() === activeBrand.toLowerCase()) {
+          targetBrandKey = b;
+          break;
+        }
+      }
+
+      const existing = brandCollections[targetBrandKey] || DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || [];
+      if (existing.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+        toast(`"${trimmed}" is already a collection for ${targetBrandKey}`, "info");
+        setSelectedSubtype(trimmed);
+        return;
+      }
+
+      const updatedCols = [...existing, trimmed];
+      const newBrandCollections = {
+        ...brandCollections,
+        [targetBrandKey]: updatedCols,
+      };
+
+      setBrandCollections(newBrandCollections);
+      try {
+        localStorage.setItem("zain_brand_collections", JSON.stringify(newBrandCollections));
+      } catch {}
+
+      setSelectedSubtype(trimmed);
+      toast(`✓ Added collection "${trimmed}" to ${targetBrandKey}`, "success");
+
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandCollections: newBrandCollections }),
+      }).catch((e) => console.error("Failed to save brand collection:", e));
+    },
+    [watchedBrand, brandCollections]
+  );
+
   // Add an attribute value directly from Audit page and persist to database
   const handleAddAttributeValue = useCallback(
     async (
@@ -819,6 +931,16 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     ) => {
       const trimmed = val.trim();
       if (!trimmed || !selectedCategoryName) return;
+
+      // If adding a subtype for shirts, it is a brand-specific collection!
+      if (isShirtCategory(selectedCategoryName) && attrKey === "subtypes") {
+        if ((watchedBrand || "").trim()) {
+          await handleAddBrandCollection(trimmed);
+        } else {
+          toast("Please enter or select a brand first to add a brand collection", "info");
+        }
+        return;
+      }
 
       const existingCatAttrs = currentCategoryAttrs;
       const existingList = existingCatAttrs[attrKey] || [];
@@ -1907,15 +2029,32 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               </div>
             </div>
 
-            {/* Subtypes / Collections */}
-            {((currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0) || isInnerwear || isShirtCategory(selectedCategoryName)) && (
-              <ChipSelector
-                label={isShirtCategory(selectedCategoryName) ? "Collection / Subtype" : "Subtype / Style"}
-                options={currentCategoryAttrs.subtypes || []}
-                value={selectedSubtype}
-                onChange={setSelectedSubtype}
-                onAdd={(val) => handleAddAttributeValue("subtypes", val)}
-              />
+            {/* Subtypes (for innerwear/others) OR Brand Collections (for shirts) */}
+            {isShirtCategory(selectedCategoryName) ? (
+              watchedBrand.trim() ? (
+                <ChipSelector
+                  label={`${watchedBrand.trim()} Collection`}
+                  badge={
+                    <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                      Brand specific
+                    </span>
+                  }
+                  options={availableSubtypes}
+                  value={selectedSubtype}
+                  onChange={setSelectedSubtype}
+                  onAdd={handleAddBrandCollection}
+                />
+              ) : null
+            ) : (
+              ((currentCategoryAttrs.subtypes && currentCategoryAttrs.subtypes.length > 0) || isInnerwear) && (
+                <ChipSelector
+                  label="Subtype / Style"
+                  options={availableSubtypes}
+                  value={selectedSubtype}
+                  onChange={setSelectedSubtype}
+                  onAdd={(val) => handleAddAttributeValue("subtypes", val)}
+                />
+              )
             )}
 
             {/* Collars */}

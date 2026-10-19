@@ -136,6 +136,36 @@ export const DEFAULT_BRANDS: { name: string; categories: string[] }[] = [
   },
 ];
 
+export const DEFAULT_BRAND_COLLECTIONS: Record<string, string[]> = {
+  "Minister White": [
+    "Veda",
+    "Divine Touch",
+    "Linen Club",
+    "Oxford",
+    "Club White",
+    "Platinum",
+    "Prime",
+    "Celebration",
+    "Imperial",
+    "Majestic",
+    "Classic White",
+    "Signature",
+    "Cotton Rich",
+    "Silverline",
+    "President",
+  ],
+  "Otto": [
+    "Veda",
+    "Divine Touch",
+    "Linen Club",
+    "Oxford",
+    "Club White",
+    "Platinum",
+    "Prime",
+    "Celebration",
+  ],
+};
+
 export const DEFAULT_CATEGORY_SIZE_SCALES: Record<
   string,
   { id: string; name: string; sizes: string[]; default?: boolean }[]
@@ -318,23 +348,6 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
   }
 > = {
   "Shirts": {
-    subtypes: [
-      "Veda",
-      "Divine Touch",
-      "Linen Club",
-      "Oxford",
-      "Club White",
-      "Platinum",
-      "Prime",
-      "Celebration",
-      "Imperial",
-      "Majestic",
-      "Classic White",
-      "Signature",
-      "Cotton Rich",
-      "Silverline",
-      "President",
-    ],
     collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Cutaway Collar", "Cuban Collar"],
     pockets: ["No Pocket", "Single Pocket", "Double Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
@@ -343,23 +356,6 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     patterns: ["Plain", "Checks", "Stripes", "Printed", "Micro-Checks"],
   },
   "Formal Shirts": {
-    subtypes: [
-      "Veda",
-      "Divine Touch",
-      "Linen Club",
-      "Oxford",
-      "Club White",
-      "Platinum",
-      "Prime",
-      "Celebration",
-      "Imperial",
-      "Majestic",
-      "Classic White",
-      "Signature",
-      "Cotton Rich",
-      "Silverline",
-      "President",
-    ],
     collars: ["Regular Collar", "Cutaway Collar", "Button-Down", "Mandarin / Chinese"],
     pockets: ["Single Pocket", "No Pocket", "Double Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve"],
@@ -368,23 +364,6 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     patterns: ["Solid / Plain", "Stripes", "Checks", "Micro-Checks", "Self-Textured"],
   },
   "Casual Shirts": {
-    subtypes: [
-      "Veda",
-      "Divine Touch",
-      "Linen Club",
-      "Oxford",
-      "Club White",
-      "Platinum",
-      "Prime",
-      "Celebration",
-      "Imperial",
-      "Majestic",
-      "Classic White",
-      "Signature",
-      "Cotton Rich",
-      "Silverline",
-      "President",
-    ],
     collars: ["Casual Spread", "Button-Down", "Mandarin / Chinese", "Cuban / Camp Collar", "Hooded"],
     pockets: ["Single Pocket", "Double Pocket", "No Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],

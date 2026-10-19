@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import {
   DEFAULT_CATEGORY_SIZE_SCALES,
   DEFAULT_CATEGORY_ATTRIBUTES,
+  DEFAULT_BRAND_COLLECTIONS,
 } from "@/lib/store-defaults";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +19,12 @@ export async function GET() {
   try {
     const rows = (await sql`
       SELECT key, value FROM "StoreSetting"
-      WHERE key IN ('category_size_scales', 'category_attributes', 'store_colors');
+      WHERE key IN ('category_size_scales', 'category_attributes', 'store_colors', 'brand_collections');
     `) as { key: string; value: unknown }[];
 
     let sizeScales: Record<string, unknown> | null = null;
     let attributes: Record<string, unknown> | null = null;
+    let brandCollections: Record<string, string[]> | null = null;
     let savedColors: string[] = [];
 
     for (const r of rows) {
@@ -31,6 +33,9 @@ export async function GET() {
       }
       if (r.key === "category_attributes" && r.value !== undefined && r.value !== null) {
         attributes = r.value as Record<string, unknown>;
+      }
+      if (r.key === "brand_collections" && r.value !== undefined && r.value !== null) {
+        brandCollections = r.value as Record<string, string[]>;
       }
       if (r.key === "store_colors" && Array.isArray(r.value)) {
         savedColors = r.value.filter((c: unknown): c is string => typeof c === "string" && Boolean(c.trim()));
@@ -74,6 +79,7 @@ export async function GET() {
       {
         sizeScales: sizeScales ?? {},
         attributes: attributes ?? {},
+        brandCollections: brandCollections ?? DEFAULT_BRAND_COLLECTIONS,
         colors: allColors,
         hasSavedSettings: rows.length > 0,
       },
@@ -85,6 +91,7 @@ export async function GET() {
       {
         sizeScales: {},
         attributes: {},
+        brandCollections: DEFAULT_BRAND_COLLECTIONS,
         colors: [],
         hasSavedSettings: false,
       },
@@ -96,7 +103,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sizeScales, attributes, colors, action } = body;
+    const { sizeScales, attributes, brandCollections, colors, action } = body;
 
     if (action === "reset_defaults") {
       await sql`
@@ -113,11 +120,19 @@ export async function POST(request: Request) {
         SET value = ${JSON.stringify(DEFAULT_CATEGORY_ATTRIBUTES)}::jsonb, "updatedAt" = NOW();
       `;
 
+      await sql`
+        INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
+        VALUES ('st_brand_cols', 'brand_collections', ${JSON.stringify(DEFAULT_BRAND_COLLECTIONS)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET value = ${JSON.stringify(DEFAULT_BRAND_COLLECTIONS)}::jsonb, "updatedAt" = NOW();
+      `;
+
       return NextResponse.json({
         success: true,
         message: "Settings reset to defaults",
         sizeScales: DEFAULT_CATEGORY_SIZE_SCALES,
         attributes: DEFAULT_CATEGORY_ATTRIBUTES,
+        brandCollections: DEFAULT_BRAND_COLLECTIONS,
       });
     }
 
@@ -136,6 +151,15 @@ export async function POST(request: Request) {
         VALUES ('st_attrs', 'category_attributes', ${JSON.stringify(attributes)}::jsonb, NOW())
         ON CONFLICT (key) DO UPDATE
         SET value = ${JSON.stringify(attributes)}::jsonb, "updatedAt" = NOW();
+      `;
+    }
+
+    if (brandCollections !== undefined) {
+      await sql`
+        INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
+        VALUES ('st_brand_cols', 'brand_collections', ${JSON.stringify(brandCollections)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE
+        SET value = ${JSON.stringify(brandCollections)}::jsonb, "updatedAt" = NOW();
       `;
     }
 

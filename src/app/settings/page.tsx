@@ -181,6 +181,7 @@ export default function SettingsPage() {
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [sizeScales, setSizeScales] = useState<SizeScalesMap>({});
   const [attributes, setAttributes] = useState<AttributesMap>({});
+  const [brandCollections, setBrandCollections] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -260,6 +261,9 @@ export default function SettingsPage() {
         const settingsData = await settingsRes.json();
         setSizeScales(settingsData.sizeScales || {});
         setAttributes(settingsData.attributes || {});
+        if (settingsData.brandCollections) {
+          setBrandCollections(settingsData.brandCollections);
+        }
       }
     } catch (err) {
       console.error("Failed to load settings data:", err);
@@ -1133,6 +1137,11 @@ export default function SettingsPage() {
                           ))
                         )}
                       </div>
+                      {Boolean(brandCollections[b.name]?.length) && (
+                        <div className="mt-1 text-[11px] text-indigo-600 font-medium">
+                          {brandCollections[b.name].length} collections ({brandCollections[b.name].slice(0, 3).join(", ")}...)
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
