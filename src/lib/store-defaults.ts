@@ -146,6 +146,8 @@ export const DEFAULT_BRAND_COLLECTIONS: Record<string, string[]> = {
     "Linco Linen",
     "Linen Slub",
     "Forum",
+    "Swatheshi Starch",
+    "Cotton Linen",
   ],
   "Otto": [
     "Veda",
