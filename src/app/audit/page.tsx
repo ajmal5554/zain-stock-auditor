@@ -732,7 +732,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       const brandName = (watchedBrand || "").trim();
       if (!brandName) return [];
       const predefined = getBrandCollections(brandName);
-      return Array.from(new Set([...predefined, ...harvestedBrandCollections]));
+      if (predefined.length > 0) return predefined;
+      return harvestedBrandCollections;
     }
     return currentCategoryAttrs.subtypes || [];
   }, [
@@ -923,6 +924,50 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     [watchedBrand, brandCollections]
   );
 
+  // Remove a brand-specific collection
+  const handleRemoveBrandCollection = useCallback(
+    async (collectionToRemove: string) => {
+      const activeBrand = (watchedBrand || "").trim();
+      if (!activeBrand) return;
+
+      let targetBrandKey = activeBrand;
+      for (const b of Object.keys(brandCollections)) {
+        if (b.toLowerCase() === activeBrand.toLowerCase()) {
+          targetBrandKey = b;
+          break;
+        }
+      }
+
+      const existing = brandCollections[targetBrandKey] || DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || [];
+      const updatedCols = existing.filter(
+        (c) => c.toLowerCase() !== collectionToRemove.toLowerCase()
+      );
+
+      const newBrandCollections = {
+        ...brandCollections,
+        [targetBrandKey]: updatedCols,
+      };
+
+      setBrandCollections(newBrandCollections);
+      try {
+        localStorage.setItem("zain_brand_collections", JSON.stringify(newBrandCollections));
+      } catch {}
+
+      if (selectedSubtype?.toLowerCase() === collectionToRemove.toLowerCase()) {
+        setSelectedSubtype(null);
+      }
+
+      toast(`Removed "${collectionToRemove}" from ${targetBrandKey}`, "info");
+
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandCollections: newBrandCollections }),
+      }).catch((e) => console.error("Failed to update brand collections:", e));
+    },
+    [watchedBrand, brandCollections, selectedSubtype]
+  );
+
   // Add an attribute value directly from Audit page and persist to database
   const handleAddAttributeValue = useCallback(
     async (
@@ -986,6 +1031,12 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       tagToRemove: string
     ) => {
       if (!selectedCategoryName) return;
+
+      if (isShirtCategory(selectedCategoryName) && attrKey === "subtypes") {
+        await handleRemoveBrandCollection(tagToRemove);
+        return;
+      }
+
       const existingCatAttrs = currentCategoryAttrs;
       const existingList = existingCatAttrs[attrKey] || [];
       const updatedList = existingList.filter((item) => item !== tagToRemove);
@@ -1529,13 +1580,14 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSubmit, onSubmit]);
 
-  /* ── Enhanced Chip selector helper with inline Quick-Add ── */
+  /* ── Enhanced Chip selector helper with inline Quick-Add & Quick-Delete ── */
   const ChipSelector = ({
     label,
     options,
     value,
     onChange,
     onAdd,
+    onDelete,
     color = "indigo",
     badge,
   }: {
@@ -1544,10 +1596,12 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     value: string | null;
     onChange: (v: string | null) => void;
     onAdd?: (newVal: string) => void;
+    onDelete?: (val: string) => void;
     color?: "indigo" | "amber" | "slate" | "teal";
     badge?: React.ReactNode;
   }) => {
     const [isAdding, setIsAdding] = useState(false);
+    const [isManaging, setIsManaging] = useState(false);
     const [addInput, setAddInput] = useState("");
 
     if ((!options || options.length === 0) && !onAdd) return null;
@@ -1589,6 +1643,19 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           </label>
           <div className="flex items-center gap-2">
             {badge}
+            {onDelete && (options || []).length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsManaging(!isManaging)}
+                className={`text-[10px] font-medium transition-colors ${
+                  isManaging
+                    ? "text-rose-600 font-semibold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                {isManaging ? "Done" : "Manage"}
+              </button>
+            )}
             {value && (
               <button
                 type="button"
@@ -1602,16 +1669,33 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {(options || []).map((opt) => (
-            <button
+            <div
               key={opt}
-              type="button"
-              onClick={() => onChange(value === opt ? null : opt)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+              className={`inline-flex items-center rounded-lg text-xs font-medium transition-all border ${
                 value === opt ? c.active : c.inactive
               }`}
             >
-              {opt}
-            </button>
+              <button
+                type="button"
+                onClick={() => !isManaging && onChange(value === opt ? null : opt)}
+                className={`px-2.5 py-1 ${isManaging ? "cursor-default" : "cursor-pointer"}`}
+              >
+                {opt}
+              </button>
+              {isManaging && onDelete && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(opt);
+                  }}
+                  className="pr-1.5 pl-0.5 text-rose-500 hover:text-rose-700 transition-colors"
+                  title={`Remove ${opt}`}
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
           ))}
 
           {onAdd && (
@@ -2043,6 +2127,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   value={selectedSubtype}
                   onChange={setSelectedSubtype}
                   onAdd={handleAddBrandCollection}
+                  onDelete={handleRemoveBrandCollection}
                 />
               ) : null
             ) : (
@@ -2053,6 +2138,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   value={selectedSubtype}
                   onChange={setSelectedSubtype}
                   onAdd={(val) => handleAddAttributeValue("subtypes", val)}
+                  onDelete={(val) => handleRemoveAttributeTag("subtypes", val)}
                 />
               )
             )}
@@ -2065,6 +2151,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                 value={selectedCollar}
                 onChange={setSelectedCollar}
                 onAdd={(val) => handleAddAttributeValue("collars", val)}
+                onDelete={(val) => handleRemoveAttributeTag("collars", val)}
               />
             )}
 
@@ -2088,6 +2175,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   value={selectedPocket}
                   onChange={setSelectedPocket}
                   onAdd={(val) => handleAddAttributeValue("pockets", val)}
+                  onDelete={(val) => handleRemoveAttributeTag("pockets", val)}
                   color="teal"
                 />
               </div>
@@ -2128,6 +2216,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               value={watch("pattern") || null}
               onChange={(val) => setValue("pattern", val)}
               onAdd={(val) => handleAddAttributeValue("patterns", val)}
+              onDelete={(val) => handleRemoveAttributeTag("patterns", val)}
             />
 
             {/* Sleeve */}
@@ -2139,6 +2228,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   value={watch("sleeve") || null}
                   onChange={(val) => setValue("sleeve", val)}
                   onAdd={(val) => handleAddAttributeValue("sleeves", val)}
+                  onDelete={(val) => handleRemoveAttributeTag("sleeves", val)}
                 />
               </div>
             )}
@@ -2150,6 +2240,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
               value={watch("fabric") || null}
               onChange={(val) => setValue("fabric", val)}
               onAdd={(val) => handleAddAttributeValue("fabrics", val)}
+              onDelete={(val) => handleRemoveAttributeTag("fabrics", val)}
             />
 
             {/* Fit */}
@@ -2168,6 +2259,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   value={watch("fit") || null}
                   onChange={(val) => setValue("fit", val)}
                   onAdd={(val) => handleAddAttributeValue("fits", val)}
+                  onDelete={(val) => handleRemoveAttributeTag("fits", val)}
                 />
               </div>
             )}
@@ -2180,6 +2272,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                 value={selectedBorder}
                 onChange={setSelectedBorder}
                 onAdd={(val) => handleAddAttributeValue("borders", val)}
+                onDelete={(val) => handleRemoveAttributeTag("borders", val)}
                 color="amber"
               />
             )}

@@ -15,6 +15,7 @@ import {
   FolderPlus,
   AlertTriangle,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -192,6 +193,8 @@ export default function SettingsPage() {
   const [newBrandCategories, setNewBrandCategories] = useState<string[]>([]);
   const [editingBrand, setEditingBrand] = useState<BrandItem | null>(null);
   const [editBrandCategories, setEditBrandCategories] = useState<string[]>([]);
+  const [editBrandCollections, setEditBrandCollections] = useState<string[]>([]);
+  const [newBrandCollectionInput, setNewBrandCollectionInput] = useState("");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [brandToDelete, setBrandToDelete] = useState<BrandItem | null>(null);
   const [isDeleteBrandOpen, setIsDeleteBrandOpen] = useState(false);
@@ -423,6 +426,19 @@ export default function SettingsPage() {
       setBrands((prev) =>
         prev.map((b) => (b.name === editingBrand.name ? { ...b, categories: editBrandCategories } : b))
       );
+
+      // Save updated brand collections
+      const updatedBrandCollections = {
+        ...brandCollections,
+        [editingBrand.name]: editBrandCollections,
+      };
+      setBrandCollections(updatedBrandCollections);
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandCollections: updatedBrandCollections }),
+      });
+
       setIsEditDialogOpen(false);
       setEditingBrand(null);
       toast.success(`Updated ${editingBrand.name}`);
@@ -1150,6 +1166,8 @@ export default function SettingsPage() {
                       onClick={() => {
                         setEditingBrand(b);
                         setEditBrandCategories(b.categories);
+                        setEditBrandCollections(brandCollections[b.name] || []);
+                        setNewBrandCollectionInput("");
                         setIsEditDialogOpen(true);
                       }}
                       className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
@@ -1648,6 +1666,72 @@ export default function SettingsPage() {
                   </label>
                 );
               })}
+            </div>
+
+            {/* Brand Collections Section */}
+            <div className="pt-3 border-t border-slate-200">
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Collections ({editBrandCollections.length})
+              </label>
+              <div className="text-[11px] text-slate-400 mb-2">
+                Brand-specific collections or sub-lines (e.g. for shirts).
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-2 max-h-36 overflow-y-auto pr-1">
+                {editBrandCollections.map((col) => (
+                  <span
+                    key={col}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  >
+                    <span>{col}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditBrandCollections((prev) => prev.filter((c) => c !== col))
+                      }
+                      className="text-indigo-400 hover:text-rose-600 transition-colors"
+                      title={`Remove ${col}`}
+                    >
+                      <X size={12} strokeWidth={2.5} />
+                    </button>
+                  </span>
+                ))}
+                {editBrandCollections.length === 0 && (
+                  <span className="text-xs text-slate-400 italic">No collections added yet.</span>
+                )}
+              </div>
+              <div className="flex gap-1.5">
+                <Input
+                  placeholder="New collection name..."
+                  value={newBrandCollectionInput}
+                  onChange={(e) => setNewBrandCollectionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = newBrandCollectionInput.trim();
+                      if (val && !editBrandCollections.includes(val)) {
+                        setEditBrandCollections((prev) => [...prev, val]);
+                        setNewBrandCollectionInput("");
+                      }
+                    }
+                  }}
+                  className="h-8 text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const val = newBrandCollectionInput.trim();
+                    if (val && !editBrandCollections.includes(val)) {
+                      setEditBrandCollections((prev) => [...prev, val]);
+                      setNewBrandCollectionInput("");
+                    }
+                  }}
+                  className="h-8 text-xs px-2.5 text-indigo-600"
+                >
+                  <Plus size={13} /> Add
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
