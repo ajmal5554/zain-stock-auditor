@@ -76,6 +76,192 @@ interface RecentAuditItem {
   variants?: { size: string; quantity: number }[];
 }
 
+interface ChipSelectorProps {
+  label: string;
+  options: string[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+  onAdd?: (newVal: string) => void;
+  onDelete?: (val: string) => void;
+  color?: "indigo" | "amber" | "slate" | "teal";
+  badge?: React.ReactNode;
+}
+
+function ChipSelector({
+  label,
+  options,
+  value,
+  onChange,
+  onAdd,
+  onDelete,
+  color = "indigo",
+  badge,
+}: ChipSelectorProps) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [isManaging, setIsManaging] = useState(false);
+  const [addInput, setAddInput] = useState("");
+
+  if ((!options || options.length === 0) && !onAdd) return null;
+
+  const colorMap = {
+    indigo: {
+      active: "bg-indigo-600 text-white border-indigo-600 shadow-xs",
+      inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+    },
+    amber: {
+      active: "bg-amber-600 text-white border-amber-600 shadow-xs",
+      inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+    },
+    slate: {
+      active: "bg-slate-800 text-white border-slate-800 shadow-xs",
+      inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+    },
+    teal: {
+      active: "bg-teal-600 text-white border-teal-600 shadow-xs",
+      inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+    },
+  };
+  const c = colorMap[color];
+
+  const handleCommitAdd = () => {
+    const trimmed = addInput.trim();
+    if (trimmed && onAdd) {
+      onAdd(trimmed);
+      setAddInput("");
+      setIsAdding(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {badge}
+          {onDelete && (options || []).length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsManaging(!isManaging)}
+              className={`text-[10px] font-medium transition-colors ${
+                isManaging
+                  ? "text-rose-600 font-semibold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {isManaging ? "Done" : "Manage"}
+            </button>
+          )}
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(options || []).map((opt) => (
+          <div
+            key={opt}
+            className={`inline-flex items-center rounded-lg text-xs font-medium transition-all border ${
+              value === opt ? c.active : c.inactive
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => !isManaging && onChange(value === opt ? null : opt)}
+              className={`px-2.5 py-1 ${isManaging ? "cursor-default" : "cursor-pointer"}`}
+            >
+              {opt}
+            </button>
+            {isManaging && onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(opt);
+                }}
+                className="pr-1.5 pl-0.5 text-rose-500 hover:text-rose-700 transition-colors"
+                title={`Remove ${opt}`}
+              >
+                <X size={12} strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
+        ))}
+
+        {onAdd && (
+          isAdding ? (
+            <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg p-0.5 animate-slide-up shadow-xs">
+              <input
+                type="text"
+                placeholder="New..."
+                value={addInput}
+                onChange={(e) => setAddInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCommitAdd();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsAdding(false);
+                    setAddInput("");
+                  }
+                }}
+                autoFocus
+                className="w-28 px-2 py-0.5 text-xs text-slate-800 outline-none"
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCommitAdd();
+                }}
+                disabled={!addInput.trim()}
+                className="w-5 h-5 rounded bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center disabled:opacity-40"
+                title="Add option"
+              >
+                <Check size={11} strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsAdding(false);
+                  setAddInput("");
+                }}
+                className="w-5 h-5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                title="Cancel"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAdding(true)}
+              className="px-2 py-1 rounded-lg text-xs font-medium transition-all border border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-400 bg-slate-50 hover:bg-white flex items-center gap-0.5"
+              title={`Add new ${label}`}
+            >
+              <Plus size={11} />
+              <span>Add</span>
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AuditPage() {
   const [recentAudits, setRecentAudits] = useState<RecentAuditItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -161,6 +347,8 @@ export default function AuditPage() {
 
   const brandInputRef = useRef<HTMLInputElement>(null);
   const mrpInputRef = useRef<HTMLInputElement>(null);
+  const prevCategoryIdRef = useRef<string | null>(null);
+  const prevBrandRef = useRef<string | null>(null);
 
   const {
     register,
@@ -697,13 +885,18 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     (brandName: string): string[] => {
       const q = (brandName || "").trim().toLowerCase();
       if (!q) return [];
+      const set = new Set<string>();
       for (const [b, cols] of Object.entries(brandCollections)) {
-        if (b.toLowerCase() === q && Array.isArray(cols)) return cols;
+        if (b.toLowerCase() === q && Array.isArray(cols)) {
+          for (const c of cols) set.add(c);
+        }
       }
       for (const [b, cols] of Object.entries(DEFAULT_BRAND_COLLECTIONS)) {
-        if (b.toLowerCase() === q && Array.isArray(cols)) return cols;
+        if (b.toLowerCase() === q && Array.isArray(cols)) {
+          for (const c of cols) set.add(c);
+        }
       }
-      return [];
+      return Array.from(set);
     },
     [brandCollections]
   );
@@ -732,8 +925,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       const brandName = (watchedBrand || "").trim();
       if (!brandName) return [];
       const predefined = getBrandCollections(brandName);
-      if (predefined.length > 0) return predefined;
-      return harvestedBrandCollections;
+      return Array.from(new Set([...predefined, ...harvestedBrandCollections]));
     }
     return currentCategoryAttrs.subtypes || [];
   }, [
@@ -744,14 +936,19 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     currentCategoryAttrs.subtypes,
   ]);
 
-  // When brand changes for a shirt, reset selected subtype if it doesn't belong to the new brand
+  // When user actively switches to a DIFFERENT brand for a shirt, reset selected subtype if it doesn't belong to the new brand
   useEffect(() => {
-    if (isShirtCategory(selectedCategoryName)) {
-      if (selectedSubtype && !availableSubtypes.includes(selectedSubtype)) {
-        setSelectedSubtype(null);
+    const currentBrand = (watchedBrand || "").trim().toLowerCase();
+    if (prevBrandRef.current !== null && prevBrandRef.current !== currentBrand) {
+      if (isShirtCategory(selectedCategoryName) && selectedSubtype) {
+        const brandCols = getBrandCollections(currentBrand);
+        if (!brandCols.some((c) => c.toLowerCase() === selectedSubtype.toLowerCase())) {
+          setSelectedSubtype(null);
+        }
       }
     }
-  }, [watchedBrand, selectedCategoryName, availableSubtypes, selectedSubtype]);
+    prevBrandRef.current = currentBrand;
+  }, [watchedBrand, selectedCategoryName, selectedSubtype, getBrandCollections]);
 
   // Update category and sleeve visibility
   useEffect(() => {
@@ -760,14 +957,19 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
       if (cat) {
         setSelectedCategoryName(cat.name);
         setShowSleeve(shouldShowSleeve(cat.name));
-        setSelectedSubtype(null);
-        setSelectedCollar(null);
-        setSelectedBorder(null);
-        setSelectedPocket(null);
-        setSelectedCustomMeta({});
         if (!shouldShowSleeve(cat.name)) {
           setValue("sleeve", null);
         }
+        // ONLY reset category attributes if user explicitly switched from an existing category to a DIFFERENT category!
+        // On initial mount / draft restore, prevCategoryIdRef.current is either null or matches, so NEVER clear.
+        if (prevCategoryIdRef.current && prevCategoryIdRef.current !== watchedCategoryId) {
+          setSelectedSubtype(null);
+          setSelectedCollar(null);
+          setSelectedBorder(null);
+          setSelectedPocket(null);
+          setSelectedCustomMeta({});
+        }
+        prevCategoryIdRef.current = watchedCategoryId;
       }
     }
   }, [watchedCategoryId, categories, setValue]);
@@ -893,8 +1095,23 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           break;
         }
       }
+      if (targetBrandKey === activeBrand) {
+        for (const b of Object.keys(DEFAULT_BRAND_COLLECTIONS)) {
+          if (b.toLowerCase() === activeBrand.toLowerCase()) {
+            targetBrandKey = b;
+            break;
+          }
+        }
+      }
 
-      const existing = brandCollections[targetBrandKey] || DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || [];
+      const existing = Array.from(
+        new Set([
+          ...(brandCollections[targetBrandKey] || []),
+          ...(DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || []),
+          ...getBrandCollections(activeBrand),
+        ])
+      );
+
       if (existing.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
         toast(`"${trimmed}" is already a collection for ${targetBrandKey}`, "info");
         setSelectedSubtype(trimmed);
@@ -903,6 +1120,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
 
       const updatedCols = [...existing, trimmed];
       const newBrandCollections = {
+        ...DEFAULT_BRAND_COLLECTIONS,
         ...brandCollections,
         [targetBrandKey]: updatedCols,
       };
@@ -921,7 +1139,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         body: JSON.stringify({ brandCollections: newBrandCollections }),
       }).catch((e) => console.error("Failed to save brand collection:", e));
     },
-    [watchedBrand, brandCollections]
+    [watchedBrand, brandCollections, getBrandCollections]
   );
 
   // Remove a brand-specific collection
@@ -937,13 +1155,29 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
           break;
         }
       }
+      if (targetBrandKey === activeBrand) {
+        for (const b of Object.keys(DEFAULT_BRAND_COLLECTIONS)) {
+          if (b.toLowerCase() === activeBrand.toLowerCase()) {
+            targetBrandKey = b;
+            break;
+          }
+        }
+      }
 
-      const existing = brandCollections[targetBrandKey] || DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || [];
+      const existing = Array.from(
+        new Set([
+          ...(brandCollections[targetBrandKey] || []),
+          ...(DEFAULT_BRAND_COLLECTIONS[targetBrandKey] || []),
+          ...getBrandCollections(activeBrand),
+        ])
+      );
+
       const updatedCols = existing.filter(
         (c) => c.toLowerCase() !== collectionToRemove.toLowerCase()
       );
 
       const newBrandCollections = {
+        ...DEFAULT_BRAND_COLLECTIONS,
         ...brandCollections,
         [targetBrandKey]: updatedCols,
       };
@@ -965,7 +1199,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         body: JSON.stringify({ brandCollections: newBrandCollections }),
       }).catch((e) => console.error("Failed to update brand collections:", e));
     },
-    [watchedBrand, brandCollections, selectedSubtype]
+    [watchedBrand, brandCollections, selectedSubtype, getBrandCollections]
   );
 
   // Add an attribute value directly from Audit page and persist to database
@@ -1250,6 +1484,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
   const handleClearForm = useCallback(() => {
     try {
       localStorage.removeItem("zain_audit_draft_v1");
+      localStorage.removeItem("zain_last_audit_selection");
     } catch {}
     setHasDraft(false);
     reset({
@@ -1341,35 +1576,73 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     activeScaleId,
   ]);
 
-  // Restore draft if user was in the middle of auditing
+  // Restore draft if user was in the middle of auditing, or restore last audit selection
   const restoredDraftRef = useRef(false);
   useEffect(() => {
     if (restoredDraftRef.current || categories.length === 0) return;
     try {
+      let targetData: any = null;
+      let isDraft = false;
+
       const rawDraft = localStorage.getItem("zain_audit_draft_v1");
       if (rawDraft) {
-        const draft = JSON.parse(rawDraft);
-        if (draft.categoryId && categories.some((c) => c.id === draft.categoryId)) {
-          setValue("categoryId", draft.categoryId);
+        try {
+          targetData = JSON.parse(rawDraft);
+          isDraft = true;
+        } catch {}
+      }
+
+      if (!targetData) {
+        const rawLast = localStorage.getItem("zain_last_audit_selection");
+        if (rawLast) {
+          try {
+            targetData = JSON.parse(rawLast);
+          } catch {}
         }
-        if (draft.brand) setValue("brand", draft.brand);
-        if (draft.mrp) setValue("mrp", draft.mrp);
-        if (draft.pattern) setValue("pattern", draft.pattern);
-        if (draft.fabric) setValue("fabric", draft.fabric);
-        if (draft.sleeve) setValue("sleeve", draft.sleeve);
-        if (draft.fit) setValue("fit", draft.fit);
-        if (draft.color) setValue("color", draft.color);
-        if (draft.notes) setValue("notes", draft.notes);
-        if (draft.selectedSubtype) setSelectedSubtype(draft.selectedSubtype);
-        if (draft.selectedCollar) setSelectedCollar(draft.selectedCollar);
-        if (draft.selectedBorder) setSelectedBorder(draft.selectedBorder);
-        if (draft.selectedPocket) setSelectedPocket(draft.selectedPocket);
-        if (draft.selectedCustomMeta) setSelectedCustomMeta(draft.selectedCustomMeta);
-        if (Array.isArray(draft.sizes) && draft.sizes.length > 0) {
-          setSizes(draft.sizes);
+      }
+
+      if (targetData) {
+        const matchedCat = categories.find((c) => c.id === targetData.categoryId);
+        if (matchedCat) {
+          setValue("categoryId", matchedCat.id);
+          setSelectedCategoryName(matchedCat.name);
+          setShowSleeve(shouldShowSleeve(matchedCat.name));
+          prevCategoryIdRef.current = matchedCat.id;
+        } else if (categories.length > 0) {
+          setValue("categoryId", categories[0].id);
+          setSelectedCategoryName(categories[0].name);
+          setShowSleeve(shouldShowSleeve(categories[0].name));
+          prevCategoryIdRef.current = categories[0].id;
         }
-        if (draft.activeScaleId) setActiveScaleId(draft.activeScaleId);
-        setHasDraft(true);
+
+        if (targetData.brand) {
+          setValue("brand", targetData.brand);
+          prevBrandRef.current = targetData.brand.trim().toLowerCase();
+        }
+        if (targetData.mrp) setValue("mrp", targetData.mrp);
+        if (targetData.pattern) setValue("pattern", targetData.pattern);
+        if (targetData.fabric) setValue("fabric", targetData.fabric);
+        if (targetData.sleeve) setValue("sleeve", targetData.sleeve);
+        if (targetData.fit) setValue("fit", targetData.fit);
+        if (targetData.color) setValue("color", targetData.color);
+        if (targetData.notes) setValue("notes", targetData.notes);
+
+        if (targetData.selectedSubtype) setSelectedSubtype(targetData.selectedSubtype);
+        if (targetData.selectedCollar) setSelectedCollar(targetData.selectedCollar);
+        if (targetData.selectedBorder) setSelectedBorder(targetData.selectedBorder);
+        if (targetData.selectedPocket) setSelectedPocket(targetData.selectedPocket);
+        if (targetData.selectedCustomMeta) setSelectedCustomMeta(targetData.selectedCustomMeta);
+
+        if (isDraft && Array.isArray(targetData.sizes) && targetData.sizes.length > 0) {
+          setSizes(targetData.sizes);
+        }
+        if (targetData.activeScaleId) setActiveScaleId(targetData.activeScaleId);
+        if (isDraft) setHasDraft(true);
+      } else if (categories.length > 0) {
+        setValue("categoryId", categories[0].id);
+        setSelectedCategoryName(categories[0].name);
+        setShowSleeve(shouldShowSleeve(categories[0].name));
+        prevCategoryIdRef.current = categories[0].id;
       }
     } catch {}
     restoredDraftRef.current = true;
@@ -1434,6 +1707,28 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         rememberBrand(data.brand);
       }
 
+      // Always save last audit selection so returning to page preserves last choices!
+      const lastSelectionPayload = {
+        categoryId: data.categoryId,
+        brand: data.brand,
+        mrp: data.mrp,
+        pattern: data.pattern,
+        fabric: data.fabric,
+        sleeve: data.sleeve,
+        fit: data.fit,
+        color: data.color,
+        notes: data.notes,
+        selectedSubtype,
+        selectedCollar,
+        selectedBorder,
+        selectedPocket,
+        selectedCustomMeta,
+        activeScaleId,
+      };
+      try {
+        localStorage.setItem("zain_last_audit_selection", JSON.stringify(lastSelectionPayload));
+      } catch {}
+
       // Next item handling based on keepDetailsForNext setting
       if (keepDetailsForNext) {
         // Keep category, brand, MRP, and all attributes! Only reset size counts to 0
@@ -1443,6 +1738,14 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             currentCategoryScales[0];
           setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
         }
+        try {
+          const draftForNext = {
+            ...lastSelectionPayload,
+            sizes: sizes.map((s) => ({ ...s, quantity: 0 })),
+          };
+          localStorage.setItem("zain_audit_draft_v1", JSON.stringify(draftForNext));
+        } catch {}
+        setHasDraft(true);
       } else {
         // Full reset except category and brand
         const currentCategoryId = data.categoryId;
@@ -1472,13 +1775,12 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             currentCategoryScales[0];
           setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
         }
-      }
 
-      // Clear draft storage
-      try {
-        localStorage.removeItem("zain_audit_draft_v1");
-      } catch {}
-      setHasDraft(false);
+        try {
+          localStorage.removeItem("zain_audit_draft_v1");
+        } catch {}
+        setHasDraft(false);
+      }
 
       setTimeout(() => {
         if (!keepDetailsForNext) {
@@ -1525,6 +1827,27 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
         rememberBrand(data.brand);
       }
 
+      const lastSelectionPayload = {
+        categoryId: data.categoryId,
+        brand: data.brand,
+        mrp: data.mrp,
+        pattern: data.pattern,
+        fabric: data.fabric,
+        sleeve: data.sleeve,
+        fit: data.fit,
+        color: data.color,
+        notes: data.notes,
+        selectedSubtype,
+        selectedCollar,
+        selectedBorder,
+        selectedPocket,
+        selectedCustomMeta,
+        activeScaleId,
+      };
+      try {
+        localStorage.setItem("zain_last_audit_selection", JSON.stringify(lastSelectionPayload));
+      } catch {}
+
       if (keepDetailsForNext) {
         if (currentCategoryScales.length > 0) {
           const activeScale =
@@ -1532,6 +1855,14 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             currentCategoryScales[0];
           setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
         }
+        try {
+          const draftForNext = {
+            ...lastSelectionPayload,
+            sizes: sizes.map((s) => ({ ...s, quantity: 0 })),
+          };
+          localStorage.setItem("zain_audit_draft_v1", JSON.stringify(draftForNext));
+        } catch {}
+        setHasDraft(true);
       } else {
         const currentCategoryId = data.categoryId;
         const currentBrand = data.brand;
@@ -1558,12 +1889,11 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
             currentCategoryScales[0];
           setSizes(activeScale.sizes.map((s: string) => ({ size: s, quantity: 0 })));
         }
+        try {
+          localStorage.removeItem("zain_audit_draft_v1");
+        } catch {}
+        setHasDraft(false);
       }
-
-      try {
-        localStorage.removeItem("zain_audit_draft_v1");
-      } catch {}
-      setHasDraft(false);
     } finally {
       setSubmitting(false);
     }
@@ -1579,182 +1909,6 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSubmit, onSubmit]);
-
-  /* ── Enhanced Chip selector helper with inline Quick-Add & Quick-Delete ── */
-  const ChipSelector = ({
-    label,
-    options,
-    value,
-    onChange,
-    onAdd,
-    onDelete,
-    color = "indigo",
-    badge,
-  }: {
-    label: string;
-    options: string[];
-    value: string | null;
-    onChange: (v: string | null) => void;
-    onAdd?: (newVal: string) => void;
-    onDelete?: (val: string) => void;
-    color?: "indigo" | "amber" | "slate" | "teal";
-    badge?: React.ReactNode;
-  }) => {
-    const [isAdding, setIsAdding] = useState(false);
-    const [isManaging, setIsManaging] = useState(false);
-    const [addInput, setAddInput] = useState("");
-
-    if ((!options || options.length === 0) && !onAdd) return null;
-
-    const colorMap = {
-      indigo: {
-        active: "bg-indigo-600 text-white border-indigo-600 shadow-xs",
-        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-      },
-      amber: {
-        active: "bg-amber-600 text-white border-amber-600 shadow-xs",
-        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-      },
-      slate: {
-        active: "bg-slate-800 text-white border-slate-800 shadow-xs",
-        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-      },
-      teal: {
-        active: "bg-teal-600 text-white border-teal-600 shadow-xs",
-        inactive: "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-      },
-    };
-    const c = colorMap[color];
-
-    const handleCommitAdd = () => {
-      const trimmed = addInput.trim();
-      if (trimmed && onAdd) {
-        onAdd(trimmed);
-        setAddInput("");
-        setIsAdding(false);
-      }
-    };
-
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-            {label}
-          </label>
-          <div className="flex items-center gap-2">
-            {badge}
-            {onDelete && (options || []).length > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsManaging(!isManaging)}
-                className={`text-[10px] font-medium transition-colors ${
-                  isManaging
-                    ? "text-rose-600 font-semibold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                {isManaging ? "Done" : "Manage"}
-              </button>
-            )}
-            {value && (
-              <button
-                type="button"
-                onClick={() => onChange(null)}
-                className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {(options || []).map((opt) => (
-            <div
-              key={opt}
-              className={`inline-flex items-center rounded-lg text-xs font-medium transition-all border ${
-                value === opt ? c.active : c.inactive
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => !isManaging && onChange(value === opt ? null : opt)}
-                className={`px-2.5 py-1 ${isManaging ? "cursor-default" : "cursor-pointer"}`}
-              >
-                {opt}
-              </button>
-              {isManaging && onDelete && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(opt);
-                  }}
-                  className="pr-1.5 pl-0.5 text-rose-500 hover:text-rose-700 transition-colors"
-                  title={`Remove ${opt}`}
-                >
-                  <X size={12} strokeWidth={2.5} />
-                </button>
-              )}
-            </div>
-          ))}
-
-          {onAdd && (
-            isAdding ? (
-              <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg p-0.5 animate-slide-up">
-                <input
-                  type="text"
-                  placeholder="New..."
-                  value={addInput}
-                  onChange={(e) => setAddInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleCommitAdd();
-                    } else if (e.key === "Escape") {
-                      setIsAdding(false);
-                      setAddInput("");
-                    }
-                  }}
-                  autoFocus
-                  className="w-24 px-1.5 py-0.5 text-xs text-slate-800 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleCommitAdd}
-                  disabled={!addInput.trim()}
-                  className="w-5 h-5 rounded bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center disabled:opacity-40"
-                  title="Add option"
-                >
-                  <Check size={11} strokeWidth={2.5} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAdding(false);
-                    setAddInput("");
-                  }}
-                  className="w-5 h-5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
-                  title="Cancel"
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsAdding(true)}
-                className="px-2 py-1 rounded-lg text-xs font-medium transition-all border border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-400 bg-slate-50 hover:bg-white flex items-center gap-0.5"
-                title={`Add new ${label}`}
-              >
-                <Plus size={11} />
-                <span>Add</span>
-              </button>
-            )
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 md:pt-8 pb-24 md:pb-12">
@@ -1978,8 +2132,8 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   </div>
 
                   {/* If user typed a custom brand not in store, offer to add it */}
-                  {watchedBrand &&
-                    !brands.some((b) => b.toLowerCase() === watchedBrand.toLowerCase().trim()) && (
+                  {(watchedBrand || "").trim() &&
+                    !brands.some((b) => b.toLowerCase() === (watchedBrand || "").trim().toLowerCase()) && (
                       <button
                         type="button"
                         className="w-full px-3 py-2.5 text-left text-xs font-semibold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 transition-colors flex items-center justify-between"
@@ -1991,7 +2145,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       >
                         <span className="flex items-center gap-1.5">
                           <Plus size={14} />
-                          Add &quot;{watchedBrand.trim()}&quot; to store brands
+                          Add &quot;{(watchedBrand || "").trim()}&quot; to store brands
                         </span>
                         <span className="text-[10px] text-indigo-500 font-bold bg-white px-2 py-0.5 rounded border border-indigo-200">
                           + Add Brand
@@ -2006,7 +2160,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   ) : (
                     dropdownBrands.map((b) => {
                       const isSelected =
-                        watchedBrand && watchedBrand.toLowerCase().trim() === b.toLowerCase().trim();
+                        (watchedBrand || "").trim().toLowerCase() === b.toLowerCase().trim();
                       return (
                         <button
                           key={b}
@@ -2037,7 +2191,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                   )}
 
                   {/* If search filtered the list, option to view all brands */}
-                  {Boolean(watchedBrand && dropdownBrands.length < brands.length) && (
+                  {Boolean((watchedBrand || "").trim() && dropdownBrands.length < brands.length) && (
                     <button
                       type="button"
                       className="w-full px-3 py-2 text-center text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors bg-slate-50/50"
@@ -2066,7 +2220,7 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
                       setShowBrandDropdown(false);
                     }}
                     className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
-                      watchedBrand && watchedBrand.toLowerCase().trim() === b.toLowerCase().trim()
+                      (watchedBrand || "").trim().toLowerCase() === b.toLowerCase().trim()
                         ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                     }`}
@@ -2115,9 +2269,9 @@ type CategoryScale = { id: string; name: string; sizes: string[]; default?: bool
 
             {/* Subtypes (for innerwear/others) OR Brand Collections (for shirts) */}
             {isShirtCategory(selectedCategoryName) ? (
-              watchedBrand.trim() ? (
+              (watchedBrand || "").trim() ? (
                 <ChipSelector
-                  label={`${watchedBrand.trim()} Collection`}
+                  label={`${(watchedBrand || "").trim()} Collection`}
                   badge={
                     <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                       Brand specific

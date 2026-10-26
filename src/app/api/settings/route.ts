@@ -74,12 +74,24 @@ export async function GET() {
 
     const allColors = Array.from(harvestedColors).sort((a, b) => a.localeCompare(b));
 
+    // Merge default brand collections with any custom/edited brand collections in database
+    const mergedBrandCollections: Record<string, string[]> = {
+      ...DEFAULT_BRAND_COLLECTIONS,
+    };
+    if (brandCollections && typeof brandCollections === "object") {
+      for (const [brand, cols] of Object.entries(brandCollections)) {
+        if (Array.isArray(cols)) {
+          mergedBrandCollections[brand] = cols;
+        }
+      }
+    }
+
     // Return whatever is in database (even if empty); only fallback if setting never initialized
     return NextResponse.json(
       {
         sizeScales: sizeScales ?? {},
         attributes: attributes ?? {},
-        brandCollections: brandCollections ?? DEFAULT_BRAND_COLLECTIONS,
+        brandCollections: mergedBrandCollections,
         colors: allColors,
         hasSavedSettings: rows.length > 0,
       },
@@ -154,12 +166,16 @@ export async function POST(request: Request) {
       `;
     }
 
-    if (brandCollections !== undefined) {
+    if (brandCollections !== undefined && typeof brandCollections === "object") {
+      const mergedBrandColsToSave = {
+        ...DEFAULT_BRAND_COLLECTIONS,
+        ...brandCollections,
+      };
       await sql`
         INSERT INTO "StoreSetting" (id, key, value, "updatedAt")
-        VALUES ('st_brand_cols', 'brand_collections', ${JSON.stringify(brandCollections)}::jsonb, NOW())
+        VALUES ('st_brand_cols', 'brand_collections', ${JSON.stringify(mergedBrandColsToSave)}::jsonb, NOW())
         ON CONFLICT (key) DO UPDATE
-        SET value = ${JSON.stringify(brandCollections)}::jsonb, "updatedAt" = NOW();
+        SET value = ${JSON.stringify(mergedBrandColsToSave)}::jsonb, "updatedAt" = NOW();
       `;
     }
 
