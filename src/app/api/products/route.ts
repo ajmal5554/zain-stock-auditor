@@ -125,7 +125,8 @@ export async function POST(request: Request) {
 
     // Find existing product style or create new, then upsert each variant atomically
     const product = await prisma.$transaction(async (tx) => {
-      let productRecord = await tx.product.findFirst({
+      // 1. Fetch potential matching candidates by core product attributes
+      const candidates = await tx.product.findMany({
         where: {
           categoryId: validated.categoryId,
           brand: { equals: validated.brand, mode: "insensitive" },
@@ -133,8 +134,69 @@ export async function POST(request: Request) {
           fabric: validated.fabric ?? null,
           sleeve: validated.sleeve ?? null,
           mrp: Math.floor(validated.mrp),
-          notes: enrichedNotes ? { equals: enrichedNotes, mode: "insensitive" } : null,
         },
+      });
+
+      const targetSubtype = (customMetaObj.subtype || "").trim().toLowerCase();
+      const targetCollar = (customMetaObj.collar || "").trim().toLowerCase();
+      const targetPocket = (customMetaObj.pocket || (isShirt ? "Single Pocket" : "")).trim().toLowerCase();
+      const targetBorder = (customMetaObj.border || "").trim().toLowerCase();
+      const targetFit = (customMetaObj.fit || "").trim().toLowerCase();
+      const targetColor = (customMetaObj.color || "").trim().toLowerCase();
+      const targetUserNote = (validated.notes || "").trim().toLowerCase();
+
+      // Find exact style match among candidates (matching subtype/collection, collar, pocket, border, fit, color)
+      let productRecord = candidates.find((cand) => {
+        const candMeta = (cand.customMeta as Record<string, string> | null) || {};
+        const candSubtype = (candMeta.subtype || "").trim().toLowerCase();
+        const candCollar = (candMeta.collar || "").trim().toLowerCase();
+        const candPocket = (candMeta.pocket || (isShirt ? "Single Pocket" : "")).trim().toLowerCase();
+        const candBorder = (candMeta.border || "").trim().toLowerCase();
+
+        // 1. Subtype / Collection MUST match exactly
+        if (candSubtype !== targetSubtype) return false;
+
+        // 2. Collar style MUST match
+        if (candCollar !== targetCollar) return false;
+
+        // 3. Pocket style MUST match
+        if (candPocket !== targetPocket) return false;
+
+        // 4. Border style MUST match
+        if (candBorder !== targetBorder) return false;
+
+        // 5. Fit & Color MUST match
+        const candFit = (
+          candMeta.fit ||
+          (cand.notes?.includes("Slim Fit")
+            ? "Slim Fit"
+            : cand.notes?.includes("Regular Fit")
+            ? "Regular Fit"
+            : "")
+        ).trim().toLowerCase();
+
+        const candColor = (
+          candMeta.color ||
+          (cand.notes?.includes("White")
+            ? "White"
+            : cand.notes?.includes("Color")
+            ? "Color"
+            : "")
+        ).trim().toLowerCase();
+
+        if (targetFit && candFit && candFit !== targetFit) return false;
+        if (targetColor && candColor && candColor !== targetColor) return false;
+
+        // 6. User note (if explicit notes were provided)
+        if (targetUserNote) {
+          const candUserNote = (cand.notes?.includes("|")
+            ? cand.notes.split("|")[1]
+            : cand.notes || ""
+          ).trim().toLowerCase();
+          if (candUserNote !== targetUserNote) return false;
+        }
+
+        return true;
       });
 
       if (!productRecord) {
@@ -154,31 +216,31 @@ export async function POST(request: Request) {
           },
         });
       } else {
-        // If product already existed, auto-enrich any attribute that was previously missing (e.g. collar, subtype, border)
+        // Product matched the exact style (including collection/subtype)!
+        // Enrich any empty attributes if new ones were provided
         const existingMeta = (productRecord.customMeta as Record<string, string>) || {};
         let needsUpdate = false;
         const mergedMeta: Record<string, string> = { ...existingMeta };
 
-        if (!existingMeta.collar && customMetaObj.collar) {
-          mergedMeta.collar = customMetaObj.collar;
-          needsUpdate = true;
+        for (const [key, val] of Object.entries(customMetaObj)) {
+          if (!existingMeta[key] && val) {
+            mergedMeta[key] = val;
+            needsUpdate = true;
+          }
         }
-        if (!existingMeta.subtype && customMetaObj.subtype) {
-          mergedMeta.subtype = customMetaObj.subtype;
-          needsUpdate = true;
-        }
-        if (!existingMeta.border && customMetaObj.border) {
-          mergedMeta.border = customMetaObj.border;
-          needsUpdate = true;
-        }
-        if (!existingMeta.pocket && customMetaObj.pocket) {
-          mergedMeta.pocket = customMetaObj.pocket;
-          needsUpdate = true;
-        }
+
+        const updateData: Record<string, unknown> = {};
         if (needsUpdate) {
+          updateData.customMeta = mergedMeta;
+        }
+        if (!productRecord.costPrice && validated.costPrice) {
+          updateData.costPrice = Math.floor(validated.costPrice);
+        }
+
+        if (Object.keys(updateData).length > 0) {
           productRecord = await tx.product.update({
             where: { id: productRecord.id },
-            data: { customMeta: mergedMeta },
+            data: updateData,
           });
         }
       }
