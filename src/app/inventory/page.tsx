@@ -66,6 +66,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { CustomExportDialog } from "@/components/custom-export-dialog";
 
 interface Category {
   id: string;
@@ -226,6 +227,9 @@ export default function InventoryPage() {
   const [fabricFilter, setFabricFilter] = useState("");
   const [patternFilter, setPatternFilter] = useState("");
   const [priceRangeFilter, setPriceRangeFilter] = useState<"all" | "under_500" | "500_1000" | "1000_2000" | "above_2000">("all");
+
+  // Customized Export Modal State
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // In-line variant quantity editing
   const [editingVariant, setEditingVariant] = useState<string | null>(null);
@@ -1350,12 +1354,26 @@ export default function InventoryPage() {
             <span className="hidden sm:inline">Refresh</span>
           </Button>
 
-          <Link href="/export">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-semibold">
-              <ArrowDownToLine size={14} />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsExportDialogOpen(true)}
+            className={`h-9 gap-1.5 text-xs font-semibold transition-all ${
+              activeFilterCount > 0 || search || categoryFilter
+                ? "border-emerald-300 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100 font-bold shadow-2xs"
+                : "text-slate-700"
+            }`}
+            title="Customized Export based on current filters"
+          >
+            <ArrowDownToLine
+              size={14}
+              className={activeFilterCount > 0 || search || categoryFilter ? "text-emerald-600" : ""}
+            />
+            <span>Export</span>
+            {(activeFilterCount > 0 || search || categoryFilter) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
+            )}
+          </Button>
 
           <Link href="/audit">
             <Button size="sm" className="h-9 gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">
@@ -2863,6 +2881,35 @@ export default function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Customized Filtered Export Dialog ── */}
+      <CustomExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        activeFilters={{
+          search,
+          categoryName: categories.find((c) => c.id === categoryFilter)?.name,
+          brand: brandFilter,
+          size: sizeFilter,
+          stock: stockFilter,
+          fit: fitFilter,
+          color: colorFilter,
+          collar: collarFilter,
+          sleeve: sleeveFilter,
+          fabric: fabricFilter,
+          pattern: patternFilter,
+          priceRange: priceRangeFilter,
+        }}
+        activeFilterCount={activeFilterCount + (search ? 1 : 0) + (categoryFilter ? 1 : 0)}
+        filteredProducts={filteredProducts}
+        filteredPcs={filteredPcs}
+        filteredStyles={filteredStyles}
+        filteredValue={filteredValue}
+        totalStorePcs={totalPcs}
+        totalStoreStyles={uniqueStyles}
+        totalStoreValue={totalValue}
+        matchesSizeFn={matchesSize}
+      />
     </div>
   );
 }
