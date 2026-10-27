@@ -4,8 +4,8 @@
  */
 
 export const DEFAULT_CATEGORIES = [
-  "Formal Shirts",
-  "Casual Shirts",
+  "Shirts",
+  "Kids Shirts",
   "T-Shirts & Polos",
   "Trousers & Chinos",
   "Jeans & Denims",
@@ -20,7 +20,7 @@ export const DEFAULT_CATEGORIES = [
 export const DEFAULT_BRANDS: { name: string; categories: string[] }[] = [
   {
     name: "Minister White",
-    categories: ["Shirts", "Formal Shirts", "Casual Shirts", "Mundus & Dhotis", "Kurtas & Traditional"],
+    categories: ["Shirts", "Kids Shirts", "Mundus & Dhotis", "Kurtas & Traditional"],
   },
   {
     name: "Jockey",
@@ -224,21 +224,21 @@ export const DEFAULT_CATEGORY_SIZE_SCALES: Record<
       sizes: ["Standard Set", "Double Set"],
     },
   ],
+  "Kids Shirts": [
+    {
+      id: "kids_shirt_numeric",
+      name: "Kids Numeric (20 - 38)",
+      sizes: ["20", "22", "24", "26", "28", "30", "32", "34", "36", "38"],
+      default: true,
+    },
+    {
+      id: "kids_shirt_age",
+      name: "Age Group (1Y - 14Y)",
+      sizes: ["1-2Y", "2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y", "9-10Y", "11-12Y", "13-14Y"],
+    },
+  ],
   "Shirts": [
     {
-      id: "shirt_alpha",
-      name: "Standard Alpha (S - 5XL)",
-      sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
-      default: true,
-    },
-    {
-      id: "shirt_collar",
-      name: "Collar Size (38 - 46 cm)",
-      sizes: ["38", "39", "40", "42", "44", "46"],
-    },
-  ],
-  "Formal Shirts": [
-    {
       id: "shirt_collar",
       name: "Collar Size (38 - 46 cm)",
       sizes: ["38", "39", "40", "42", "44", "46"],
@@ -248,19 +248,6 @@ export const DEFAULT_CATEGORY_SIZE_SCALES: Record<
       id: "shirt_alpha",
       name: "Standard Alpha (S - 5XL)",
       sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
-    },
-  ],
-  "Casual Shirts": [
-    {
-      id: "casual_alpha",
-      name: "Standard Alpha (S - 5XL)",
-      sizes: ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL"],
-      default: true,
-    },
-    {
-      id: "casual_chest",
-      name: "Chest (38 - 46)",
-      sizes: ["38", "40", "42", "44", "46"],
     },
   ],
   "Trousers & Chinos": [
@@ -342,29 +329,21 @@ export const DEFAULT_CATEGORY_ATTRIBUTES: Record<
     customAttributes?: Record<string, string[]>;
   }
 > = {
-  "Shirts": {
-    collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Cutaway Collar", "Cuban Collar"],
-    pockets: ["No Pocket", "Single Pocket", "Double Pocket"],
-    sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
-    fits: ["Regular Fit", "Slim Fit", "Tailored Fit"],
-    fabrics: ["Cotton", "Linen", "Cotton Blend", "Giza Cotton", "Oxford Cotton", "Lycra"],
-    patterns: ["Plain", "Checks", "Stripes", "Printed", "Micro-Checks"],
-  },
-  "Formal Shirts": {
-    collars: ["Regular Collar", "Cutaway Collar", "Button-Down", "Mandarin / Chinese"],
+  "Kids Shirts": {
+    collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Cuban Collar", "Casual Spread"],
     pockets: ["Single Pocket", "No Pocket", "Double Pocket"],
-    sleeves: ["Full Sleeve", "Half Sleeve"],
-    fits: ["Slim Fit", "Regular / Classic Fit", "Tailored Fit"],
-    fabrics: ["100% Giza Cotton", "Pure Linen", "Cotton Blend", "Oxford Cotton", "Fil-a-Fil", "Silk Blend"],
-    patterns: ["Solid / Plain", "Stripes", "Checks", "Micro-Checks", "Self-Textured"],
-  },
-  "Casual Shirts": {
-    collars: ["Casual Spread", "Button-Down", "Mandarin / Chinese", "Cuban / Camp Collar", "Hooded"],
-    pockets: ["Single Pocket", "Double Pocket", "No Pocket"],
     sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
-    fits: ["Slim Fit", "Relaxed Fit", "Boxy Fit"],
-    fabrics: ["Pure Linen", "Washed Cotton", "Denim / Chambray", "Corduroy", "Flannel", "Cotton Lycra"],
-    patterns: ["Checks / Plaid", "Printed / Floral", "Stripes", "Solid / Plain", "Tie-Dye"],
+    fits: ["Regular Fit", "Slim Fit", "Comfort Fit"],
+    fabrics: ["Cotton", "Pure Linen", "Cotton Blend", "Lycra Stretch", "Satin Cotton"],
+    patterns: ["Plain", "Checks", "Printed", "Stripes", "Festive / Traditional"],
+  },
+  "Shirts": {
+    collars: ["Regular Collar", "Mandarin / Chinese Collar", "Button-Down", "Cutaway Collar", "Cuban Collar", "Casual Spread"],
+    pockets: ["Single Pocket", "No Pocket", "Double Pocket"],
+    sleeves: ["Full Sleeve", "Half Sleeve", "Roll-up Sleeve"],
+    fits: ["Regular Fit", "Slim Fit", "Tailored Fit", "Comfort Fit", "Relaxed Fit"],
+    fabrics: ["Cotton", "Pure Linen", "Cotton Blend", "Giza Cotton", "Oxford Cotton", "Lycra Stretch", "Satin Cotton"],
+    patterns: ["Plain", "Checks", "Stripes", "Printed", "Micro-Checks"],
   },
   "T-Shirts & Polos": {
     collars: ["Polo / Collar", "Round Neck", "V-Neck", "Hooded / Hoodie", "Henley", "Mock Neck"],

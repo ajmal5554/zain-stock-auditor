@@ -4,8 +4,8 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.DATABASE_URL!);
 
 export const DEFAULT_CATEGORIES = [
-  "Formal Shirts",
-  "Casual Shirts",
+  "Shirts",
+  "Kids Shirts",
   "T-Shirts & Polos",
   "Trousers & Chinos",
   "Jeans & Denims",
